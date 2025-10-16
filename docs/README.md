@@ -49,7 +49,7 @@ uv run controller-agent &
 sleep 15
 
 # Run demo
-uv run python demo_multi_agent.py
+uv run python examples/demo_multi_agent.py
 
 # Or run integration tests
 ./run_integration_tests.sh
@@ -62,7 +62,7 @@ uv run python demo_multi_agent.py
 python -m pytest tests/ -v
 
 # Integration tests (requires agents running)
-./run_integration_tests.sh
+./scripts/run_integration_tests.sh
 
 # View demo logs (proof of MCP and A2A execution)
 cd logs/demo_multi_agent/
@@ -91,4 +91,4 @@ cd logs/demo_multi_agent/
 
 All logs show exact inputs/outputs, proving tools actually execute (no hallucination or workarounds).
 
-See [DEMO_LOGS_SUMMARY.md](../DEMO_LOGS_SUMMARY.md) for complete details.
+See [DEMO_LOGS_SUMMARY.md](DEMO_LOGS_SUMMARY.md) for complete details.

@@ -528,8 +528,8 @@ When adding new features:
 
 ## See Also
 
-- `../ARCHITECTURE_UPGRADE.md` - A2A architecture upgrade
-- `../UPGRADE_SUMMARY.md` - Quick reference
+- `../docs/ARCHITECTURE_UPGRADE.md` - A2A architecture upgrade
+- `../docs/UPGRADE_SUMMARY.md` - Quick reference
 - `../src/base_a2a_agent.py` - Base agent implementation
 - `../src/a2a_transport.py` - A2A transport layer
 - `../src/agent_registry.py` - Dynamic discovery
