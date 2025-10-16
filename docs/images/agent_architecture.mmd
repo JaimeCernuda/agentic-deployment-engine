@@ -1,0 +1,28 @@
+graph TB
+    subgraph Agent ["Agent"]
+        LLM[LLM]
+
+        Loop[Agent Loop]
+        Tools[MCP Tools]
+        Memory[(Memory)]
+        A2A[A2A Interface]
+
+        LLM <--> Loop
+        Loop <--> Memory
+        Loop <--> Tools
+        Loop <--> A2A
+    end
+
+    Storage[(Storage<br/>Files/DB)]
+    OtherAgents[Other Agents]
+
+    Tools <--> Storage
+    A2A <--> OtherAgents
+
+    style LLM fill:#9b59b6,stroke:#000,stroke-width:3px,color:#fff
+    style Loop fill:#e74c3c,stroke:#000,stroke-width:3px,color:#fff
+    style Memory fill:#3498db,stroke:#000,stroke-width:2px,color:#fff
+    style Tools fill:#2ecc71,stroke:#000,stroke-width:2px,color:#fff
+    style A2A fill:#f39c12,stroke:#000,stroke-width:2px,color:#fff
+    style Storage fill:#95a5a6,stroke:#000,stroke-width:2px,color:#fff
+    style OtherAgents fill:#95a5a6,stroke:#000,stroke-width:2px,color:#fff

@@ -1,0 +1,43 @@
+[project]
+name = "clean-mcp-a2a"
+version = "0.1.0"
+description = "Clean multi-agent system leveraging claude-code-sdk properly"
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "httpx>=0.25.0",
+    "pydantic>=2.5.0",
+    "a2a-sdk>=0.1.0",
+    "claude-agent-sdk @ git+https://github.com/anthropics/claude-agent-sdk-python.git@main",
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pyyaml>=6.0.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "paramiko>=3.0.0"
+]
+requires-python = ">=3.10"
+
+[project.scripts]
+# A2A agents with SDK MCP integration
+weather-agent = "agents.weather_agent:main"
+maps-agent = "agents.maps_agent:main"
+controller-agent = "agents.controller_agent:main"
+# Start all agents
+start-all = "src.start_all:main"
+# Job deployment CLI
+deploy = "src.jobs.cli:main"
+# Test scripts
+test-system = "tests.test_system:main"
+test-unit = "pytest:main"
+test-integration = "pytest:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]

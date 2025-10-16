@@ -1,0 +1,89 @@
+graph TB
+    subgraph S1 [" 1. Hub-and-Spoke "]
+        C1(( ))
+        A11(( ))
+        A12(( ))
+        A13(( ))
+        A14(( ))
+
+        C1 --- A11
+        C1 --- A12
+        C1 --- A13
+        C1 --- A14
+
+        style C1 fill:#e74c3c,stroke:#000,stroke-width:4px
+        style A11 fill:#3498db,stroke:#000,stroke-width:2px
+        style A12 fill:#3498db,stroke:#000,stroke-width:2px
+        style A13 fill:#3498db,stroke:#000,stroke-width:2px
+        style A14 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S2 [" 2. Pipeline "]
+        P1(( ))
+        P2(( ))
+        P3(( ))
+        P4(( ))
+
+        P1 --> P2
+        P2 --> P3
+        P3 --> P4
+
+        style P1 fill:#3498db,stroke:#000,stroke-width:2px
+        style P2 fill:#3498db,stroke:#000,stroke-width:2px
+        style P3 fill:#3498db,stroke:#000,stroke-width:2px
+        style P4 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S3 [" 3. Hierarchical "]
+        R(( ))
+        C21(( ))
+        C22(( ))
+        L1(( ))
+        L2(( ))
+        L3(( ))
+
+        R --- C21
+        R --- C22
+        C21 --- L1
+        C21 --- L2
+        C22 --- L3
+
+        style R fill:#e74c3c,stroke:#000,stroke-width:4px
+        style C21 fill:#f39c12,stroke:#000,stroke-width:3px
+        style C22 fill:#f39c12,stroke:#000,stroke-width:3px
+        style L1 fill:#3498db,stroke:#000,stroke-width:2px
+        style L2 fill:#3498db,stroke:#000,stroke-width:2px
+        style L3 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S4 [" 4. Peer-to-Peer "]
+        M1(( ))
+        M2(( ))
+        M3(( ))
+        M4(( ))
+        M5(( ))
+        M6(( ))
+
+        M1 --- M2
+        M1 --- M3
+        M1 --- M4
+        M1 --- M5
+        M1 --- M6
+        M2 --- M3
+        M2 --- M4
+        M2 --- M5
+        M2 --- M6
+        M3 --- M4
+        M3 --- M5
+        M3 --- M6
+        M4 --- M5
+        M4 --- M6
+        M5 --- M6
+
+        style M1 fill:#3498db,stroke:#000,stroke-width:2px
+        style M2 fill:#3498db,stroke:#000,stroke-width:2px
+        style M3 fill:#3498db,stroke:#000,stroke-width:2px
+        style M4 fill:#3498db,stroke:#000,stroke-width:2px
+        style M5 fill:#3498db,stroke:#000,stroke-width:2px
+        style M6 fill:#3498db,stroke:#000,stroke-width:2px
+    end

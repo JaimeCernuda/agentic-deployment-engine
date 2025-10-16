@@ -1,0 +1,30 @@
+graph TB
+    User[User] -->|Write Query| Blackboard
+
+    subgraph Blackboard [Shared Blackboard Space]
+        Knowledge[(Knowledge Base<br/>- Query<br/>- Partial Results<br/>- Final Solution)]
+    end
+
+    Agent1[Agent 1] <-->|Read/Write| Knowledge
+    Agent2[Agent 2] <-->|Read/Write| Knowledge
+    Agent3[Agent 3] <-->|Read/Write| Knowledge
+    Agent4[Agent 4] <-->|Read/Write| Knowledge
+    Agent5[Agent 5] <-->|Read/Write| Knowledge
+
+    Knowledge -->|Monitor Completion| Coordinator[Solution Coordinator]
+    Coordinator -->|Final Response| User
+
+    Agent1 -.->|Subscribe to Events| Knowledge
+    Agent2 -.->|Subscribe to Events| Knowledge
+    Agent3 -.->|Subscribe to Events| Knowledge
+    Agent4 -.->|Subscribe to Events| Knowledge
+    Agent5 -.->|Subscribe to Events| Knowledge
+
+    style Knowledge fill:#34495e,stroke:#1c2833,color:#fff,stroke-width:3px
+    style Coordinator fill:#e74c3c,stroke:#c0392b,color:#fff
+    style Agent1 fill:#3498db,stroke:#2874a6,color:#fff
+    style Agent2 fill:#2ecc71,stroke:#27ae60,color:#fff
+    style Agent3 fill:#f39c12,stroke:#d68910,color:#fff
+    style Agent4 fill:#9b59b6,stroke:#7d3c98,color:#fff
+    style Agent5 fill:#16a085,stroke:#138d75,color:#fff
+    style User fill:#95a5a6,stroke:#7f8c8d,color:#fff

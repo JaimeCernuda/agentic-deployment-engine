@@ -1,0 +1,144 @@
+# Collaborative Mesh Network
+# Pattern: Full Mesh - all agents can communicate with all others
+# Use case: Peer-to-peer collaboration, distributed consensus, agent teams
+
+job:
+  name: collaborative-research-mesh
+  version: 1.0.0
+  description: Mesh of research agents collaborating on complex problems
+  tags:
+    - mesh
+    - collaboration
+    - peer-to-peer
+    - research
+
+agents:
+  # Research Agent 1: Literature Expert
+  - id: literature
+    type: ResearchAgent
+    module: agents.research.base_agent
+    config:
+      port: 9001
+      name: Literature Research Agent
+      specialization: literature_review
+      knowledge_domains:
+        - academic_papers
+        - citations
+        - research_trends
+    deployment:
+      target: localhost
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  # Research Agent 2: Data Analyst
+  - id: data_analyst
+    type: ResearchAgent
+    module: agents.research.base_agent
+    config:
+      port: 9002
+      name: Data Analysis Agent
+      specialization: data_analysis
+      knowledge_domains:
+        - statistical_analysis
+        - data_visualization
+        - pattern_recognition
+    deployment:
+      target: localhost
+    resources:
+      cpu: 4.0
+      memory: 8G
+
+  # Research Agent 3: Experiment Designer
+  - id: experiment
+    type: ResearchAgent
+    module: agents.research.base_agent
+    config:
+      port: 9003
+      name: Experiment Design Agent
+      specialization: experimental_design
+      knowledge_domains:
+        - methodology
+        - hypothesis_testing
+        - experimental_protocols
+    deployment:
+      target: localhost
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  # Research Agent 4: Theory Builder
+  - id: theory
+    type: ResearchAgent
+    module: agents.research.base_agent
+    config:
+      port: 9004
+      name: Theory Building Agent
+      specialization: theoretical_framework
+      knowledge_domains:
+        - conceptual_models
+        - theory_synthesis
+        - framework_development
+    deployment:
+      target: localhost
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  # Research Agent 5: Peer Reviewer
+  - id: reviewer
+    type: ResearchAgent
+    module: agents.research.base_agent
+    config:
+      port: 9005
+      name: Peer Review Agent
+      specialization: critical_evaluation
+      knowledge_domains:
+        - quality_assessment
+        - methodology_critique
+        - reproducibility
+    deployment:
+      target: localhost
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+# Full mesh topology - every agent can communicate with every other agent
+topology:
+  type: mesh
+  agents:
+    - literature
+    - data_analyst
+    - experiment
+    - theory
+    - reviewer
+  # This creates bidirectional connections between all pairs
+
+# Deployment configuration
+deployment:
+  strategy: parallel  # Start all agents simultaneously
+  timeout: 45
+  health_check:
+    enabled: true
+    interval: 10
+    retries: 3
+
+# Mesh-specific execution
+execution:
+  # No single entry point in mesh - all agents can initiate
+  entry_point: null
+  auto_start: true
+
+  # Collaboration protocol
+  collaboration:
+    mode: peer-to-peer
+    consensus_required: false
+    voting_enabled: true
+    quorum: 3  # Minimum 3 agents must agree
+
+# Mesh environment
+environment:
+  COLLABORATION_MODE: mesh
+  PEER_DISCOVERY: enabled
+  CONSENSUS_PROTOCOL: raft  # Or "paxos", "gossip"
+  LOG_LEVEL: INFO

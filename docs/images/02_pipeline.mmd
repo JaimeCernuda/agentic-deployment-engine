@@ -1,0 +1,15 @@
+graph LR
+    User[User Input] --> Stage1[Agent 1<br/>Intake/Parse]
+    Stage1 --> Stage2[Agent 2<br/>Validate]
+    Stage2 --> Stage3[Agent 3<br/>Process]
+    Stage3 --> Stage4[Agent 4<br/>Transform]
+    Stage4 --> Stage5[Agent 5<br/>Format]
+    Stage5 --> User2[User Output]
+
+    style Stage1 fill:#3498db,stroke:#2874a6,color:#fff
+    style Stage2 fill:#2ecc71,stroke:#27ae60,color:#fff
+    style Stage3 fill:#f39c12,stroke:#d68910,color:#fff
+    style Stage4 fill:#9b59b6,stroke:#7d3c98,color:#fff
+    style Stage5 fill:#e74c3c,stroke:#c0392b,color:#fff
+    style User fill:#95a5a6,stroke:#7f8c8d,color:#fff
+    style User2 fill:#95a5a6,stroke:#7f8c8d,color:#fff

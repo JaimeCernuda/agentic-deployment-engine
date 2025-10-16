@@ -1,0 +1,97 @@
+# Multi-Host SSH Deployment
+# Pattern: Hub-and-Spoke with agents distributed across multiple hosts
+# Use case: Production distributed deployment
+
+job:
+  name: multi-host-distributed
+  version: 1.0.0
+  description: Distributed deployment across multiple hosts via SSH
+  tags:
+    - ssh
+    - distributed
+    - production
+    - multi-host
+
+agents:
+  # Weather service on dedicated host
+  - id: weather
+    type: WeatherAgent
+    module: agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent
+    deployment:
+      target: remote
+      host: weather-host.example.com  # Replace with actual hostname
+      # user: agent-user  # Uncomment to specify different user
+      # ssh_key: ~/.ssh/custom_key  # Uncomment for custom SSH key
+      workdir: ~/agents/weather
+      python: python3
+    resources:
+      cpu: 2.0
+      memory: 2G
+
+  # Maps service on different host
+  - id: maps
+    type: MapsAgent
+    module: agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent
+    deployment:
+      target: remote
+      host: maps-host.example.com  # Replace with actual hostname
+      workdir: ~/agents/maps
+      python: python3
+    resources:
+      cpu: 2.0
+      memory: 2G
+
+  # Controller on main host (can be localhost or remote)
+  - id: controller
+    type: ControllerAgent
+    module: agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost  # Or use 'remote' with host for full distributed setup
+    resources:
+      cpu: 4.0
+      memory: 4G
+
+# Hub-and-spoke topology
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 60
+  health_check:
+    enabled: true
+    interval: 10
+    retries: 6
+
+  # SSH configuration (global defaults)
+  ssh:
+    key_file: ~/.ssh/id_rsa
+    timeout: 30
+
+  # Network configuration
+  network:
+    allow_cross_host: true
+
+# Workflow execution
+execution:
+  entry_point: controller
+  auto_start: true
+
+# Global environment variables
+environment:
+  DEPLOYMENT_ENV: production
+  LOG_LEVEL: INFO

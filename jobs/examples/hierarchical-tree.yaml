@@ -1,0 +1,286 @@
+# Hierarchical Tree Structure
+# Pattern: Multi-level hierarchy (tree)
+# Use case: Geographic distribution, organizational hierarchy, load distribution
+
+job:
+  name: global-weather-network
+  version: 1.0.0
+  description: Hierarchical weather monitoring network with regional coordinators
+  tags:
+    - hierarchical
+    - tree
+    - distributed
+    - geo-distributed
+
+agents:
+  # Root: Global Coordinator
+  - id: global_coordinator
+    type: GlobalCoordinator
+    module: agents.hierarchy.global_coordinator
+    config:
+      port: 9000
+      name: Global Weather Coordinator
+      regions:
+        - americas
+        - europe
+        - asia
+    deployment:
+      target: remote
+      host: global.weather.example.com
+      user: weather-admin
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 4.0
+      memory: 8G
+
+  # Level 1: Regional Coordinators
+  - id: americas_coordinator
+    type: RegionalCoordinator
+    module: agents.hierarchy.regional_coordinator
+    config:
+      port: 9100
+      name: Americas Regional Coordinator
+      region: americas
+      timezone: America/New_York
+    deployment:
+      target: remote
+      host: americas.weather.example.com
+      user: weather-admin
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  - id: europe_coordinator
+    type: RegionalCoordinator
+    module: agents.hierarchy.regional_coordinator
+    config:
+      port: 9100
+      name: Europe Regional Coordinator
+      region: europe
+      timezone: Europe/London
+    deployment:
+      target: remote
+      host: europe.weather.example.com
+      user: weather-admin
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  - id: asia_coordinator
+    type: RegionalCoordinator
+    module: agents.hierarchy.regional_coordinator
+    config:
+      port: 9100
+      name: Asia Regional Coordinator
+      region: asia
+      timezone: Asia/Tokyo
+    deployment:
+      target: remote
+      host: asia.weather.example.com
+      user: weather-admin
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  # Level 2: Local Weather Stations (Americas)
+  - id: new_york_station
+    type: WeatherStation
+    module: agents.hierarchy.weather_station
+    config:
+      port: 9201
+      name: New York Weather Station
+      location:
+        city: New York
+        country: USA
+        lat: 40.7128
+        lon: -74.0060
+    deployment:
+      target: remote
+      host: nyc.weather.example.com
+      user: weather-station
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+  - id: san_francisco_station
+    type: WeatherStation
+    module: agents.hierarchy.weather_station
+    config:
+      port: 9202
+      name: San Francisco Weather Station
+      location:
+        city: San Francisco
+        country: USA
+        lat: 37.7749
+        lon: -122.4194
+    deployment:
+      target: remote
+      host: sfo.weather.example.com
+      user: weather-station
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+  # Level 2: Local Weather Stations (Europe)
+  - id: london_station
+    type: WeatherStation
+    module: agents.hierarchy.weather_station
+    config:
+      port: 9201
+      name: London Weather Station
+      location:
+        city: London
+        country: UK
+        lat: 51.5074
+        lon: -0.1278
+    deployment:
+      target: remote
+      host: london.weather.example.com
+      user: weather-station
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+  - id: paris_station
+    type: WeatherStation
+    module: agents.hierarchy.weather_station
+    config:
+      port: 9202
+      name: Paris Weather Station
+      location:
+        city: Paris
+        country: France
+        lat: 48.8566
+        lon: 2.3522
+    deployment:
+      target: remote
+      host: paris.weather.example.com
+      user: weather-station
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+  # Level 2: Local Weather Stations (Asia)
+  - id: tokyo_station
+    type: WeatherStation
+    module: agents.hierarchy.weather_station
+    config:
+      port: 9201
+      name: Tokyo Weather Station
+      location:
+        city: Tokyo
+        country: Japan
+        lat: 35.6762
+        lon: 139.6503
+    deployment:
+      target: remote
+      host: tokyo.weather.example.com
+      user: weather-station
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+  - id: singapore_station
+    type: WeatherStation
+    module: agents.hierarchy.weather_station
+    config:
+      port: 9202
+      name: Singapore Weather Station
+      location:
+        city: Singapore
+        country: Singapore
+        lat: 1.3521
+        lon: 103.8198
+    deployment:
+      target: remote
+      host: singapore.weather.example.com
+      user: weather-station
+      python: /usr/bin/python3
+      workdir: /opt/weather
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+# Hierarchical tree topology
+topology:
+  type: hierarchical
+  root: global_coordinator
+
+  # Define hierarchy levels
+  levels:
+    # Level 1: Regional coordinators
+    - parent: global_coordinator
+      children:
+        - americas_coordinator
+        - europe_coordinator
+        - asia_coordinator
+
+    # Level 2: Weather stations by region
+    - parent: americas_coordinator
+      children:
+        - new_york_station
+        - san_francisco_station
+
+    - parent: europe_coordinator
+      children:
+        - london_station
+        - paris_station
+
+    - parent: asia_coordinator
+      children:
+        - tokyo_station
+        - singapore_station
+
+# Deployment configuration for hierarchical system
+deployment:
+  strategy: top-down  # Deploy from root to leaves
+  timeout: 90
+  health_check:
+    enabled: true
+    interval: 15
+    retries: 5
+
+  # Hierarchical deployment order
+  # 1. Deploy root (global coordinator)
+  # 2. Deploy level 1 (regional coordinators)
+  # 3. Deploy level 2 (weather stations)
+
+  ssh:
+    key_file: ~/.ssh/weather-network-key
+    timeout: 30
+
+# Workflow execution
+execution:
+  entry_point: global_coordinator
+  auto_start: true
+
+  # Hierarchical query routing
+  routing:
+    strategy: tree_traversal
+    cache_enabled: true
+    failover_to_parent: true
+
+# Global environment
+environment:
+  NETWORK_NAME: global-weather-network
+  HIERARCHY_LEVELS: 3
+  AGGREGATION_INTERVAL: 300  # 5 minutes
+  LOG_LEVEL: INFO
+  ENABLE_METRICS: "true"

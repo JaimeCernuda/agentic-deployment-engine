@@ -1,0 +1,76 @@
+flowchart TB
+    subgraph one [Hub-and-Spoke]
+        direction TB
+        c1(( ))
+        c1 --- a1(( ))
+        c1 --- a2(( ))
+        c1 --- a3(( ))
+        c1 --- a4(( ))
+
+        style c1 fill:#e74c3c,stroke:#000,stroke-width:4px
+        style a1 fill:#3498db,stroke:#000,stroke-width:2px
+        style a2 fill:#3498db,stroke:#000,stroke-width:2px
+        style a3 fill:#3498db,stroke:#000,stroke-width:2px
+        style a4 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph two [Pipeline]
+        direction LR
+        p1(( )) --> p2(( )) --> p3(( )) --> p4(( ))
+
+        style p1 fill:#3498db,stroke:#000,stroke-width:2px
+        style p2 fill:#3498db,stroke:#000,stroke-width:2px
+        style p3 fill:#3498db,stroke:#000,stroke-width:2px
+        style p4 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph three [Hierarchical]
+        direction TB
+        r(( ))
+        r --- co1(( ))
+        r --- co2(( ))
+        co1 --- l1(( ))
+        co1 --- l2(( ))
+        co2 --- l3(( ))
+
+        style r fill:#e74c3c,stroke:#000,stroke-width:4px
+        style co1 fill:#f39c12,stroke:#000,stroke-width:3px
+        style co2 fill:#f39c12,stroke:#000,stroke-width:3px
+        style l1 fill:#3498db,stroke:#000,stroke-width:2px
+        style l2 fill:#3498db,stroke:#000,stroke-width:2px
+        style l3 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph four [Peer-to-Peer]
+        direction TB
+        m2(( ))
+        m1(( ))
+        m6(( ))
+        m3(( ))
+        m5(( ))
+        m4(( ))
+
+        m1 --- m2
+        m2 --- m3
+        m3 --- m4
+        m4 --- m5
+        m5 --- m6
+        m6 --- m1
+
+        m1 --- m3
+        m1 --- m4
+        m2 --- m4
+        m2 --- m5
+        m3 --- m5
+        m3 --- m6
+        m4 --- m6
+        m5 --- m1
+        m6 --- m2
+
+        style m1 fill:#3498db,stroke:#000,stroke-width:2px
+        style m2 fill:#3498db,stroke:#000,stroke-width:2px
+        style m3 fill:#3498db,stroke:#000,stroke-width:2px
+        style m4 fill:#3498db,stroke:#000,stroke-width:2px
+        style m5 fill:#3498db,stroke:#000,stroke-width:2px
+        style m6 fill:#3498db,stroke:#000,stroke-width:2px
+    end

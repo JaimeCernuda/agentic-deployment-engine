@@ -1,0 +1,21 @@
+graph TB
+    User[User Request] --> Coordinator[Central Coordinator]
+
+    Coordinator -->|Task 1| Agent1[Specialized Agent 1]
+    Coordinator -->|Task 2| Agent2[Specialized Agent 2]
+    Coordinator -->|Task 3| Agent3[Specialized Agent 3]
+    Coordinator -->|Task 4| Agent4[Specialized Agent 4]
+
+    Agent1 -->|Result 1| Coordinator
+    Agent2 -->|Result 2| Coordinator
+    Agent3 -->|Result 3| Coordinator
+    Agent4 -->|Result 4| Coordinator
+
+    Coordinator -->|Aggregated Response| User
+
+    style Coordinator fill:#e74c3c,stroke:#a93226,color:#fff,stroke-width:3px
+    style Agent1 fill:#3498db,stroke:#2874a6,color:#fff
+    style Agent2 fill:#2ecc71,stroke:#27ae60,color:#fff
+    style Agent3 fill:#f39c12,stroke:#d68910,color:#fff
+    style Agent4 fill:#9b59b6,stroke:#7d3c98,color:#fff
+    style User fill:#95a5a6,stroke:#7f8c8d,color:#fff

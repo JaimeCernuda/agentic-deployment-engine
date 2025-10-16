@@ -1,0 +1,104 @@
+# Data Processing Pipeline
+# Pattern: Linear Pipeline
+# Use case: Sequential data transformation stages
+
+job:
+  name: data-processing-pipeline
+  version: 1.0.0
+  description: Four-stage data processing pipeline with sequential transformations
+  tags:
+    - pipeline
+    - data-processing
+    - sequential
+
+agents:
+  # Stage 1: Data Ingestion
+  - id: ingest
+    type: DataIngestAgent
+    module: agents.pipeline.ingest_agent
+    config:
+      port: 9001
+      name: Data Ingest Agent
+      source: /data/input
+      batch_size: 100
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+  # Stage 2: Data Validation
+  - id: validate
+    type: ValidationAgent
+    module: agents.pipeline.validation_agent
+    config:
+      port: 9002
+      name: Validation Agent
+      rules: /config/validation-rules.yaml
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 1G
+
+  # Stage 3: Data Transformation
+  - id: transform
+    type: TransformAgent
+    module: agents.pipeline.transform_agent
+    config:
+      port: 9003
+      name: Transform Agent
+      transformations:
+        - normalize
+        - enrich
+        - aggregate
+    deployment:
+      target: localhost
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  # Stage 4: Data Output
+  - id: output
+    type: OutputAgent
+    module: agents.pipeline.output_agent
+    config:
+      port: 9004
+      name: Output Agent
+      destination: /data/output
+      format: parquet
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 2G
+
+# Linear pipeline topology
+# Data flows: ingest → validate → transform → output
+topology:
+  type: pipeline
+  stages:
+    - ingest
+    - validate
+    - transform
+    - output
+
+# Deployment configuration
+deployment:
+  strategy: sequential  # Start in order
+  timeout: 60
+  health_check:
+    enabled: true
+    interval: 10
+    retries: 3
+
+# Workflow execution
+execution:
+  entry_point: ingest
+  auto_start: true
+
+# Pipeline-specific environment
+environment:
+  PIPELINE_ID: data-processing-pipeline
+  LOG_LEVEL: INFO
+  RETRY_ATTEMPTS: 3

@@ -1,0 +1,18 @@
+graph TB
+    User[User Query<br/>curl POST] -->|HTTP| Controller[Controller Agent<br/>Port 9000<br/>A2A Transport]
+
+    Controller -->|query_agent<br/>Weather?| Weather[Weather Agent<br/>Port 9001<br/>Weather Tools]
+    Controller -->|query_agent<br/>Distance?| Maps[Maps Agent<br/>Port 9002<br/>Maps Tools]
+
+    Weather -->|Temperature<br/>Conditions| Controller
+    Maps -->|Distance<br/>Routes| Controller
+
+    Controller -->|Synthesized<br/>Response| User
+
+    Weather -.->|Discovery<br/>/.well-known/| Controller
+    Maps -.->|Discovery<br/>/.well-known/| Controller
+
+    style Controller fill:#4a90e2,stroke:#2e5c8a,color:#fff
+    style Weather fill:#50c878,stroke:#2d7a4a,color:#fff
+    style Maps fill:#f39c12,stroke:#c87f0a,color:#fff
+    style User fill:#e74c3c,stroke:#a93226,color:#fff

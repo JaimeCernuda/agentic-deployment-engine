@@ -1,0 +1,76 @@
+# Simple Weather Query Workflow
+# Pattern: Hub-and-Spoke
+# Use case: Central coordinator with specialized workers
+
+job:
+  name: simple-weather-workflow
+  version: 1.0.0
+  description: Basic weather and maps coordination via controller
+  tags:
+    - weather
+    - maps
+    - coordination
+    - local
+
+agents:
+  # Weather service agent
+  - id: weather
+    type: WeatherAgent
+    module: agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Maps service agent
+  - id: maps
+    type: MapsAgent
+    module: agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Coordinator agent
+  - id: controller
+    type: ControllerAgent
+    module: agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+# Hub-and-spoke topology
+# Controller connects to weather and maps
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+
+# Deployment configuration
+deployment:
+  strategy: sequential  # Start in order: weather, maps, then controller
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+# Workflow execution
+execution:
+  entry_point: controller
+  auto_start: true

@@ -1,0 +1,116 @@
+graph TB
+    subgraph S1 [" 1. Hub-and-Spoke "]
+        C1(( ))
+        A11(( ))
+        A12(( ))
+        A13(( ))
+        A14(( ))
+
+        C1 --- A11
+        C1 --- A12
+        C1 --- A13
+        C1 --- A14
+
+        style C1 fill:#e74c3c,stroke:#000,stroke-width:4px
+        style A11 fill:#3498db,stroke:#000,stroke-width:2px
+        style A12 fill:#3498db,stroke:#000,stroke-width:2px
+        style A13 fill:#3498db,stroke:#000,stroke-width:2px
+        style A14 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S2 [" 2. Pipeline "]
+        P1(( ))
+        P2(( ))
+        P3(( ))
+        P4(( ))
+
+        P1 --> P2
+        P2 --> P3
+        P3 --> P4
+
+        style P1 fill:#3498db,stroke:#000,stroke-width:2px
+        style P2 fill:#3498db,stroke:#000,stroke-width:2px
+        style P3 fill:#3498db,stroke:#000,stroke-width:2px
+        style P4 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S3 [" 3. Peer-to-Peer "]
+        M1(( ))
+        M2(( ))
+        M3(( ))
+        M4(( ))
+
+        M1 --- M2
+        M1 --- M3
+        M1 --- M4
+        M2 --- M3
+        M2 --- M4
+        M3 --- M4
+
+        style M1 fill:#3498db,stroke:#000,stroke-width:2px
+        style M2 fill:#3498db,stroke:#000,stroke-width:2px
+        style M3 fill:#3498db,stroke:#000,stroke-width:2px
+        style M4 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S4 [" 4. Hierarchical "]
+        R(( ))
+        C21(( ))
+        C22(( ))
+        L1(( ))
+        L2(( ))
+        L3(( ))
+
+        R --- C21
+        R --- C22
+        C21 --- L1
+        C21 --- L2
+        C22 --- L3
+
+        style R fill:#e74c3c,stroke:#000,stroke-width:4px
+        style C21 fill:#f39c12,stroke:#000,stroke-width:3px
+        style C22 fill:#f39c12,stroke:#000,stroke-width:3px
+        style L1 fill:#3498db,stroke:#000,stroke-width:2px
+        style L2 fill:#3498db,stroke:#000,stroke-width:2px
+        style L3 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S5 [" 5. Event-Driven "]
+        T1[T1]
+        T2[T2]
+        E1(( ))
+        E2(( ))
+        E3(( ))
+
+        E1 -.-> T1
+        E2 -.-> T1
+        T1 -.-> E3
+        E1 -.-> T2
+        T2 -.-> E2
+        T2 -.-> E3
+
+        style T1 fill:#34495e,stroke:#000,stroke-width:3px,color:#fff
+        style T2 fill:#34495e,stroke:#000,stroke-width:3px,color:#fff
+        style E1 fill:#3498db,stroke:#000,stroke-width:2px
+        style E2 fill:#3498db,stroke:#000,stroke-width:2px
+        style E3 fill:#3498db,stroke:#000,stroke-width:2px
+    end
+
+    subgraph S6 [" 6. Marketplace "]
+        BR(( ))
+        MK1(( ))
+        MK2(( ))
+        MK3(( ))
+        MK4(( ))
+
+        BR --- MK1
+        BR --- MK2
+        BR -.- MK3
+        BR -.- MK4
+
+        style BR fill:#e74c3c,stroke:#000,stroke-width:4px
+        style MK1 fill:#27ae60,stroke:#000,stroke-width:3px
+        style MK2 fill:#27ae60,stroke:#000,stroke-width:3px
+        style MK3 fill:#95a5a6,stroke:#000,stroke-width:2px
+        style MK4 fill:#95a5a6,stroke:#000,stroke-width:2px
+    end

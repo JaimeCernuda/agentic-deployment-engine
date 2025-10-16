@@ -1,0 +1,99 @@
+graph TB
+    subgraph S1 [Hub-and-Spoke]
+        C1(( ))
+        C1 --- A1(( ))
+        C1 --- A2(( ))
+        C1 --- A3(( ))
+        C1 --- A4(( ))
+
+        style C1 fill:#e74c3c,stroke:#c0392b,stroke-width:3px
+        style A1 fill:#3498db,stroke:#2874a6
+        style A2 fill:#3498db,stroke:#2874a6
+        style A3 fill:#3498db,stroke:#2874a6
+        style A4 fill:#3498db,stroke:#2874a6
+    end
+
+    subgraph S2 [Pipeline]
+        P1(( )) --> P2(( ))
+        P2 --> P3(( ))
+        P3 --> P4(( ))
+
+        style P1 fill:#3498db,stroke:#2874a6
+        style P2 fill:#3498db,stroke:#2874a6
+        style P3 fill:#3498db,stroke:#2874a6
+        style P4 fill:#3498db,stroke:#2874a6
+    end
+
+    subgraph S3 [Peer-to-Peer]
+        M1(( )) --- M2(( ))
+        M1 --- M3(( ))
+        M1 --- M4(( ))
+        M2 --- M3
+        M2 --- M4
+        M3 --- M4
+
+        style M1 fill:#3498db,stroke:#2874a6
+        style M2 fill:#3498db,stroke:#2874a6
+        style M3 fill:#3498db,stroke:#2874a6
+        style M4 fill:#3498db,stroke:#2874a6
+    end
+
+    subgraph S4 [Hierarchical]
+        R(( ))
+        R --- C2(( ))
+        R --- C3(( ))
+        C2 --- L1(( ))
+        C2 --- L2(( ))
+        C3 --- L3(( ))
+        C3 --- L4(( ))
+
+        style R fill:#e74c3c,stroke:#c0392b,stroke-width:3px
+        style C2 fill:#f39c12,stroke:#d68910,stroke-width:2px
+        style C3 fill:#f39c12,stroke:#d68910,stroke-width:2px
+        style L1 fill:#3498db,stroke:#2874a6
+        style L2 fill:#3498db,stroke:#2874a6
+        style L3 fill:#3498db,stroke:#2874a6
+        style L4 fill:#3498db,stroke:#2874a6
+    end
+
+    subgraph S5 [Blackboard]
+        BB[  ]
+        BB --- B1(( ))
+        BB --- B2(( ))
+        BB --- B3(( ))
+        BB --- B4(( ))
+
+        style BB fill:#34495e,stroke:#1c2833,stroke-width:3px
+        style B1 fill:#3498db,stroke:#2874a6
+        style B2 fill:#3498db,stroke:#2874a6
+        style B3 fill:#3498db,stroke:#2874a6
+        style B4 fill:#3498db,stroke:#2874a6
+    end
+
+    subgraph S6 [Marketplace]
+        BR(( ))
+        BR --- MK1(( ))
+        BR --- MK2(( ))
+        BR --- MK3(( ))
+        BR --- MK4(( ))
+
+        style BR fill:#e74c3c,stroke:#c0392b,stroke-width:3px
+        style MK1 fill:#3498db,stroke:#2874a6
+        style MK2 fill:#3498db,stroke:#2874a6
+        style MK3 fill:#3498db,stroke:#2874a6
+        style MK4 fill:#3498db,stroke:#2874a6
+    end
+
+    subgraph S7 [Event-Driven]
+        EB[  ]
+        EB --- E1(( ))
+        EB --- E2(( ))
+        EB --- E3(( ))
+        EB --- E4(( ))
+
+        style EB fill:#34495e,stroke:#1c2833,stroke-width:3px
+        style E1 fill:#3498db,stroke:#2874a6
+        style E2 fill:#3498db,stroke:#2874a6
+        style E3 fill:#3498db,stroke:#2874a6
+        style E4 fill:#3498db,stroke:#2874a6
+    end

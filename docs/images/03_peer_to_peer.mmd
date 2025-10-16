@@ -1,0 +1,20 @@
+graph TB
+    User[User] -->|Initial Request| Agent1[Agent 1]
+
+    Agent1 <-->|Direct Communication| Agent2[Agent 2]
+    Agent1 <-->|Direct Communication| Agent3[Agent 3]
+    Agent1 <-->|Direct Communication| Agent4[Agent 4]
+    Agent2 <-->|Direct Communication| Agent3
+    Agent2 <-->|Direct Communication| Agent4
+    Agent3 <-->|Direct Communication| Agent4
+
+    Agent1 -.->|Can Respond| User
+    Agent2 -.->|Can Respond| User
+    Agent3 -.->|Can Respond| User
+    Agent4 -.->|Can Respond| User
+
+    style Agent1 fill:#3498db,stroke:#2874a6,color:#fff,stroke-width:3px
+    style Agent2 fill:#2ecc71,stroke:#27ae60,color:#fff
+    style Agent3 fill:#f39c12,stroke:#d68910,color:#fff
+    style Agent4 fill:#9b59b6,stroke:#7d3c98,color:#fff
+    style User fill:#95a5a6,stroke:#7f8c8d,color:#fff

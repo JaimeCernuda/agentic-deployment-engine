@@ -1,0 +1,196 @@
+# Distributed DAG Workflow
+# Pattern: Directed Acyclic Graph with parallel branches
+# Use case: Complex workflow with parallel processing and convergence
+
+job:
+  name: distributed-analysis-dag
+  version: 1.0.0
+  description: Multi-stage analysis with parallel processing branches
+  tags:
+    - dag
+    - distributed
+    - parallel-processing
+    - analysis
+
+agents:
+  # Entry point: Data collection
+  - id: collector
+    type: DataCollectorAgent
+    module: agents.dag.collector_agent
+    config:
+      port: 9001
+      name: Data Collector
+      sources:
+        - api
+        - database
+        - filesystem
+    deployment:
+      target: remote
+      host: collector.example.com
+      user: agent-user
+      python: /usr/bin/python3
+      workdir: /opt/agents
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+  # Parallel branch 1: Statistical analysis
+  - id: stats_analyzer
+    type: StatisticalAnalyzer
+    module: agents.dag.stats_agent
+    config:
+      port: 9002
+      name: Statistical Analyzer
+      methods:
+        - descriptive
+        - inferential
+        - time_series
+    deployment:
+      target: remote
+      host: stats-worker.example.com
+      user: agent-user
+      python: /usr/bin/python3
+      workdir: /opt/agents
+    resources:
+      cpu: 4.0
+      memory: 8G
+
+  # Parallel branch 2: Machine learning
+  - id: ml_analyzer
+    type: MLAnalyzer
+    module: agents.dag.ml_agent
+    config:
+      port: 9002
+      name: ML Analyzer
+      models:
+        - classification
+        - clustering
+        - anomaly_detection
+    deployment:
+      target: remote
+      host: ml-worker.example.com
+      user: agent-user
+      python: /usr/bin/python3
+      workdir: /opt/agents
+    resources:
+      cpu: 8.0
+      memory: 16G
+      gpu: 1
+
+  # Parallel branch 3: NLP processing
+  - id: nlp_analyzer
+    type: NLPAnalyzer
+    module: agents.dag.nlp_agent
+    config:
+      port: 9002
+      name: NLP Analyzer
+      tasks:
+        - sentiment
+        - entity_extraction
+        - summarization
+    deployment:
+      target: remote
+      host: nlp-worker.example.com
+      user: agent-user
+      python: /usr/bin/python3
+      workdir: /opt/agents
+    resources:
+      cpu: 4.0
+      memory: 8G
+      gpu: 1
+
+  # Convergence point: Results aggregation
+  - id: aggregator
+    type: ResultAggregator
+    module: agents.dag.aggregator_agent
+    config:
+      port: 9003
+      name: Result Aggregator
+      aggregation_strategy: weighted_ensemble
+    deployment:
+      target: remote
+      host: aggregator.example.com
+      user: agent-user
+      python: /usr/bin/python3
+      workdir: /opt/agents
+    resources:
+      cpu: 4.0
+      memory: 8G
+
+  # Final stage: Report generation
+  - id: reporter
+    type: ReportGenerator
+    module: agents.dag.reporter_agent
+    config:
+      port: 9004
+      name: Report Generator
+      formats:
+        - pdf
+        - html
+        - json
+      output_dir: /shared/reports
+    deployment:
+      target: remote
+      host: reporter.example.com
+      user: agent-user
+      python: /usr/bin/python3
+      workdir: /opt/agents
+    resources:
+      cpu: 2.0
+      memory: 4G
+
+# DAG topology with parallel branches
+topology:
+  type: dag
+  connections:
+    # Collector fans out to three parallel analyzers
+    - from: collector
+      to: stats_analyzer
+    - from: collector
+      to: ml_analyzer
+    - from: collector
+      to: nlp_analyzer
+
+    # All analyzers converge to aggregator
+    - from: stats_analyzer
+      to: aggregator
+    - from: ml_analyzer
+      to: aggregator
+    - from: nlp_analyzer
+      to: aggregator
+
+    # Aggregator feeds reporter
+    - from: aggregator
+      to: reporter
+
+# Deployment configuration for distributed setup
+deployment:
+  strategy: staged  # Deploy by dependency levels
+  timeout: 120
+  health_check:
+    enabled: true
+    interval: 15
+    retries: 5
+
+  # SSH configuration for remote deployment
+  ssh:
+    key_file: ~/.ssh/id_rsa
+    timeout: 30
+
+  # Network configuration
+  network:
+    allow_cross_host: true
+    firewall_rules:
+      - allow_port_range: 9001-9004
+
+# Workflow execution
+execution:
+  entry_point: collector
+  auto_start: true
+
+# Distributed environment
+environment:
+  CLUSTER_NAME: analysis-cluster
+  LOG_LEVEL: INFO
+  DISTRIBUTED_MODE: "true"
+  SHARED_STORAGE: /shared

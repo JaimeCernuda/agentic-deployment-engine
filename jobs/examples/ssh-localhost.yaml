@@ -1,0 +1,83 @@
+# SSH Localhost Test
+# Pattern: Hub-and-Spoke with SSH deployment to localhost
+# Use case: Test SSH deployment without needing remote hosts
+
+job:
+  name: ssh-localhost-test
+  version: 1.0.0
+  description: Test SSH deployment to localhost (127.0.0.1)
+  tags:
+    - ssh
+    - test
+    - localhost
+
+agents:
+  # Weather service via SSH to localhost
+  - id: weather
+    type: WeatherAgent
+    module: agents.weather_agent
+    config:
+      port: 9101
+      name: Weather Agent (SSH)
+    deployment:
+      target: remote
+      host: localhost
+      # user defaults to current user
+      # ssh_key defaults to ~/.ssh/id_rsa
+      workdir: /tmp/agents/weather
+      python: python3
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Maps service via SSH to localhost
+  - id: maps
+    type: MapsAgent
+    module: agents.maps_agent
+    config:
+      port: 9102
+      name: Maps Agent (SSH)
+    deployment:
+      target: remote
+      host: localhost
+      workdir: /tmp/agents/maps
+      python: python3
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Controller locally (to coordinate remote agents)
+  - id: controller
+    type: ControllerAgent
+    module: agents.controller_agent
+    config:
+      port: 9100
+      name: Controller Agent (Local)
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+# Hub-and-spoke topology
+# Controller (local) connects to weather and maps (both via SSH)
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 45  # SSH takes a bit longer
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 5
+
+# Workflow execution
+execution:
+  entry_point: controller
+  auto_start: true

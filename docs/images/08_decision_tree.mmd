@@ -1,0 +1,33 @@
+graph TD
+    Start([Choose Architecture]) --> Q1{System Size?}
+
+    Q1 -->|Small<br/>2-5 agents| Simple
+    Q1 -->|Medium<br/>6-15 agents| Medium
+    Q1 -->|Large<br/>16+ agents| Large
+
+    Simple --> Q2{Need<br/>Workflows?}
+    Q2 -->|No| HubSpoke[Hub-and-Spoke<br/>⭐ Simple & Effective]
+    Q2 -->|Yes| Pipeline[Pipeline<br/>⭐ Clear Flow]
+
+    Medium --> Q3{Clear<br/>Domains?}
+    Q3 -->|Yes| Hierarchical[Hierarchical<br/>⭐ Organized]
+    Q3 -->|No| Q4{Complex<br/>Problem?}
+    Q4 -->|Yes| Blackboard[Blackboard<br/>⭐ Collaborative]
+    Q4 -->|No| HubSpoke
+
+    Large --> Q5{Real-time<br/>Required?}
+    Q5 -->|Yes| EventDriven[Event-Driven<br/>⭐ Scalable]
+    Q5 -->|No| Q6{High<br/>Availability?}
+    Q6 -->|Yes| P2P[Peer-to-Peer<br/>⭐ Resilient]
+    Q6 -->|No| Q7{Resource<br/>Optimization?}
+    Q7 -->|Yes| Marketplace[Marketplace<br/>⭐ Optimized]
+    Q7 -->|No| Hierarchical
+
+    style HubSpoke fill:#27ae60,stroke:#229954,color:#fff
+    style Pipeline fill:#27ae60,stroke:#229954,color:#fff
+    style Hierarchical fill:#27ae60,stroke:#229954,color:#fff
+    style Blackboard fill:#27ae60,stroke:#229954,color:#fff
+    style EventDriven fill:#27ae60,stroke:#229954,color:#fff
+    style P2P fill:#27ae60,stroke:#229954,color:#fff
+    style Marketplace fill:#27ae60,stroke:#229954,color:#fff
+    style Start fill:#e74c3c,stroke:#c0392b,color:#fff

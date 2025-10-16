@@ -1,0 +1,99 @@
+graph TB
+    subgraph S1 [Hub-and-Spoke]
+        C1((Controller))
+        C1 --- A1((A))
+        C1 --- A2((A))
+        C1 --- A3((A))
+        C1 --- A4((A))
+
+        style C1 fill:#e74c3c,stroke:#c0392b,color:#fff
+        style A1 fill:#3498db,stroke:#2874a6,color:#fff
+        style A2 fill:#3498db,stroke:#2874a6,color:#fff
+        style A3 fill:#3498db,stroke:#2874a6,color:#fff
+        style A4 fill:#3498db,stroke:#2874a6,color:#fff
+    end
+
+    subgraph S2 [Pipeline]
+        P1((A)) --> P2((A))
+        P2 --> P3((A))
+        P3 --> P4((A))
+
+        style P1 fill:#3498db,stroke:#2874a6,color:#fff
+        style P2 fill:#3498db,stroke:#2874a6,color:#fff
+        style P3 fill:#3498db,stroke:#2874a6,color:#fff
+        style P4 fill:#3498db,stroke:#2874a6,color:#fff
+    end
+
+    subgraph S3 [Peer-to-Peer]
+        M1((A)) --- M2((A))
+        M1 --- M3((A))
+        M1 --- M4((A))
+        M2 --- M3
+        M2 --- M4
+        M3 --- M4
+
+        style M1 fill:#3498db,stroke:#2874a6,color:#fff
+        style M2 fill:#3498db,stroke:#2874a6,color:#fff
+        style M3 fill:#3498db,stroke:#2874a6,color:#fff
+        style M4 fill:#3498db,stroke:#2874a6,color:#fff
+    end
+
+    subgraph S4 [Hierarchical]
+        R((Root))
+        R --- C2((C))
+        R --- C3((C))
+        C2 --- L1((A))
+        C2 --- L2((A))
+        C3 --- L3((A))
+        C3 --- L4((A))
+
+        style R fill:#e74c3c,stroke:#c0392b,color:#fff
+        style C2 fill:#f39c12,stroke:#d68910,color:#fff
+        style C3 fill:#f39c12,stroke:#d68910,color:#fff
+        style L1 fill:#3498db,stroke:#2874a6,color:#fff
+        style L2 fill:#3498db,stroke:#2874a6,color:#fff
+        style L3 fill:#3498db,stroke:#2874a6,color:#fff
+        style L4 fill:#3498db,stroke:#2874a6,color:#fff
+    end
+
+    subgraph S5 [Blackboard]
+        BB[(KB)]
+        BB --- B1((A))
+        BB --- B2((A))
+        BB --- B3((A))
+        BB --- B4((A))
+
+        style BB fill:#34495e,stroke:#1c2833,color:#fff
+        style B1 fill:#3498db,stroke:#2874a6,color:#fff
+        style B2 fill:#3498db,stroke:#2874a6,color:#fff
+        style B3 fill:#3498db,stroke:#2874a6,color:#fff
+        style B4 fill:#3498db,stroke:#2874a6,color:#fff
+    end
+
+    subgraph S6 [Marketplace]
+        BR((Broker))
+        BR --- MK1((A))
+        BR --- MK2((A))
+        BR --- MK3((A))
+        BR --- MK4((A))
+
+        style BR fill:#e74c3c,stroke:#c0392b,color:#fff
+        style MK1 fill:#3498db,stroke:#2874a6,color:#fff
+        style MK2 fill:#3498db,stroke:#2874a6,color:#fff
+        style MK3 fill:#3498db,stroke:#2874a6,color:#fff
+        style MK4 fill:#3498db,stroke:#2874a6,color:#fff
+    end
+
+    subgraph S7 [Event-Driven]
+        EB[(Bus)]
+        EB --- E1((A))
+        EB --- E2((A))
+        EB --- E3((A))
+        EB --- E4((A))
+
+        style EB fill:#34495e,stroke:#1c2833,color:#fff
+        style E1 fill:#3498db,stroke:#2874a6,color:#fff
+        style E2 fill:#3498db,stroke:#2874a6,color:#fff
+        style E3 fill:#3498db,stroke:#2874a6,color:#fff
+        style E4 fill:#3498db,stroke:#2874a6,color:#fff
+    end
