@@ -1,0 +1,7 @@
+fastapi
+uvicorn
+aiohttp
+pydantic
+claude-agent-sdk
+pyyaml
+requests
