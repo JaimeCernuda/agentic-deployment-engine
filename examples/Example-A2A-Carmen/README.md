@@ -339,18 +339,6 @@ Run with custom URL:
 python test_task_lifecycle.py --url http://localhost:9001
 ```
 
-#### **Comparison: Basic vs Task-Based**
-
-| Feature | Basic Implementation | Task-Based Implementation |
-|---------|---------------------|---------------------------|
-| **Protocol** | Simple JSON | JSON-RPC 2.0 |
-| **State Management** | ❌ Stateless | ✅ Full task lifecycle |
-| **Context** | ❌ No persistence | ✅ Multi-turn conversations |
-| **Refinement** | ❌ Not supported | ✅ Task references |
-| **Artifacts** | ❌ Text only | ✅ Typed artifacts |
-| **Audit Trail** | ❌ No history | ✅ Complete task history |
-| **A2A Compliance** | ⚠️ Partial | ✅ Full A2A Protocol v1.0 |
-
 #### **Example: Multi-Turn Conversation**
 
 ```bash
