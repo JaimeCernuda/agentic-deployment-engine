@@ -172,15 +172,242 @@ curl -X POST http://localhost:9001/query \
 - **MCP (Model Context Protocol):** Tool integration framework for agent capabilities
 - **Claude SDK:** AI agent framework with tool support
 
+---
+
+## Task Lifecycle and Context Management
+
+This project includes **two implementations** of the multi-agent system:
+
+### 1. Basic Implementation (Original)
+Located in `agents/*_agent.py` files
+
+### 2. A2A Task-Based Implementation (Extended)
+Located in `agents/*_agent_task.py` files, implements full A2A Protocol v1.0 with:
+
+#### **Task Lifecycle Management**
+
+Tasks progress through defined states according to the A2A Protocol specification:
+
+```
+SUBMITTED      → Task created, not yet started
+    ↓
+WORKING        → Actively processing
+    ↓
+INPUT_REQUIRED → Needs user input (paused)
+AUTH_REQUIRED  → Needs authentication (paused)
+    ↓
+COMPLETED      → Successfully finished ✅
+FAILED         → Failed with error ❌
+CANCELLED      → Cancelled by user/system ❌
+REJECTED       → Cannot be processed ❌
+```
+
+**Key Features:**
+- **Task Immutability**: Once a task reaches a terminal state (COMPLETED, FAILED, CANCELLED, REJECTED), it cannot be modified
+- **Task Refinement**: New tasks can reference previous tasks via `referenceTaskIds` for iterative workflows
+- **Task Artifacts**: Completed tasks include artifacts (results) that can be referenced by subsequent tasks
+
+#### **Context Management**
+
+The `contextId` groups multiple tasks and messages, providing conversation continuity:
+
+```python
+contextId = "ctx-conversation-123"
+├─ Task 1: "Calculate 100 + 50" → COMPLETED (result: 150)
+├─ Task 2: "Convert that to EUR" → COMPLETED (references Task 1)
+└─ Task 3: "Add 25 to it" → WORKING (references Task 2)
+```
+
+**Benefits:**
+- Multi-turn conversations with memory
+- Task refinement and iteration
+- Complete audit trail of conversation history
+- Agent can access previous results in same context
+
+#### **JSON-RPC 2.0 Protocol**
+
+Communication uses JSON-RPC 2.0 as specified by A2A Protocol:
+
+**Request:**
+```json
+{
+  "jsonrpc": "2.0",
+  "method": "query",
+  "params": {
+    "query": "Calculate 25 + 17",
+    "context_id": "ctx-math-001",
+    "task_id": "task-001"
+  },
+  "id": 1
+}
+```
+
+**Response:**
+```json
+{
+  "jsonrpc": "2.0",
+  "result": {
+    "task": {
+      "task_id": "task-001",
+      "context_id": "ctx-math-001",
+      "status": {
+        "state": "completed",
+        "message": "Task completed successfully"
+      },
+      "artifacts": [{
+        "name": "math_result.txt",
+        "content": "The result is 42",
+        "content_type": "text/plain"
+      }]
+    },
+    "response": "The result is 42"
+  },
+  "id": 1
+}
+```
+
+#### **Architecture Components**
+
+The task-based implementation uses:
+
+1. **BaseA2ATaskAgent** (`src/base_a2a_task_agent.py`)
+   - Extension of `BaseA2AAgent` with task lifecycle support
+   - Implements JSON-RPC 2.0 endpoints
+   - Manages task store and conversation history
+
+2. **AgentExecutor** (in `executors/` directory)
+   - Implements task execution logic for each agent
+   - Uses `TaskUpdater` for state management
+   - Handles task cancellation
+
+3. **InMemoryTaskStore**
+   - Stores tasks and maintains context relationships
+   - Enforces task immutability rules
+   - Provides task lookup and context queries
+
+4. **TaskUpdater Helper**
+   - Simplifies task lifecycle transitions
+   - Methods: `submit()`, `start_work()`, `complete()`, `fail()`, `cancel()`
+
+#### **Running Task-Based Agents**
+
+Start individual task-based agents:
+```bash
+# Math Agent with task support
+python agents/math_agent_task.py
+
+# Finance Agent with task support
+python agents/finance_agent_task.py
+
+# Search Agent with task support
+python agents/search_agent_task.py
+
+# General Agent with task support
+python agents/general_agent_task.py
+```
+
+#### **Testing Task-Based System**
+
+**Basic Tests** (`test_agents.py`) - Uses JSON-RPC 2.0 format:
+
+```bash
+python test_agents.py
+```
+
+Tests include:
+- ✅ Direct queries to specialized agents
+- ✅ General agent delegation
+- ✅ Multi-agent orchestration
+- ✅ JSON-RPC 2.0 protocol format
+
+**Task Lifecycle Tests** (`test_task_lifecycle.py`) - Comprehensive task and context testing:
+
+```bash
+python test_task_lifecycle.py
+```
+
+Tests include:
+- ✅ **Test 1: Task State Transitions** - Verifies SUBMITTED → WORKING → COMPLETED lifecycle
+- ✅ **Test 2: Context Persistence** - Multi-turn conversations with shared context
+- ✅ **Test 3: Task Refinement** - Using `referenceTaskIds` for iterative tasks
+- ✅ **Test 4: Task Immutability** - Terminal states cannot be modified
+- ✅ **Test 5: Multi-Agent Orchestration** - Complex workflows across agents
+- ✅ **Test 6: Error Handling** - Graceful failure with FAILED state
+
+Run with custom URL:
+```bash
+python test_task_lifecycle.py --url http://localhost:9001
+```
+
+#### **Comparison: Basic vs Task-Based**
+
+| Feature | Basic Implementation | Task-Based Implementation |
+|---------|---------------------|---------------------------|
+| **Protocol** | Simple JSON | JSON-RPC 2.0 |
+| **State Management** | ❌ Stateless | ✅ Full task lifecycle |
+| **Context** | ❌ No persistence | ✅ Multi-turn conversations |
+| **Refinement** | ❌ Not supported | ✅ Task references |
+| **Artifacts** | ❌ Text only | ✅ Typed artifacts |
+| **Audit Trail** | ❌ No history | ✅ Complete task history |
+| **A2A Compliance** | ⚠️ Partial | ✅ Full A2A Protocol v1.0 |
+
+#### **Example: Multi-Turn Conversation**
+
+```bash
+# Task 1: Initial calculation
+curl -X POST http://localhost:9001/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "query",
+    "params": {
+      "query": "Convert 100 USD to EUR",
+      "context_id": "ctx-finance-session",
+      "task_id": "task-001"
+    },
+    "id": 1
+  }'
+
+# Response: Task completed with result "85 EUR"
+
+# Task 2: Refinement (references previous task)
+curl -X POST http://localhost:9001/query \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "method": "query",
+    "params": {
+      "query": "Add 50 to that",
+      "context_id": "ctx-finance-session",
+      "task_id": "task-002",
+      "reference_task_ids": ["task-001"]
+    },
+    "id": 2
+  }'
+
+# Response: Task completed with result "135 EUR"
+```
+
+#### **Reference Documentation**
+
+For complete implementation details, see:
+- [A2A Protocol Specification](https://a2a-protocol.org/latest/specification/)
+- [A2A_LIFE_OF_TASK_IMPLEMENTATION_GUIDE.md](A2A_LIFE_OF_TASK_IMPLEMENTATION_GUIDE.md) - Implementation guide
+- [base_a2a_task_agent.py](base_a2a_task_agent.py) - Base agent implementation
+
+---
 
 ## Learning Objectives
 
 This project demonstrates:
 1. How A2A protocol enables agent communication
 2. Hub-and-spoke architecture pattern for multi-agent systems
-4. Task delegation and orchestration
-5. Integration of MCP tools with A2A agents
-6. Multi-agent workflow coordination
+3. Task lifecycle management (SUBMITTED → WORKING → COMPLETED)
+4. Context management for multi-turn conversations
+5. Task delegation and orchestration
+6. Integration of MCP tools with A2A agents
+7. Multi-agent workflow coordination
+8. JSON-RPC 2.0 protocol implementation
 
 ## Logs
 

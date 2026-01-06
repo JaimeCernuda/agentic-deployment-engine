@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source venv/bin/activate)",
+      "Bash(python agents/search_agent_task.py:*)",
+      "Bash(logs/search_task_stdout.log 2)",
+      "Bash(logs/search_task_stderr.log)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(netstat:*)",
+      "Bash(logs/math_task_stdout.log 2)",
+      "Bash(logs/math_task_stderr.log)",
+      "Bash(logs/finance_task_stdout.log 2)",
+      "Bash(logs/finance_task_stderr.log)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
