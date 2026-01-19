@@ -1,0 +1,65 @@
+job:
+  name: multi-agent-workflow
+  version: 1.0.0
+  description: "General Agent delegating tasks to Math Agent, Finance Agent, and Search Agent."
+  tags:
+    - agents
+    - a2a
+    - mcp
+
+agents:
+  - id: math
+    type: MathAgent
+    module: agents.math_agent
+    config:
+      port: 9002
+      name: Math Agent
+    deployment:
+      target: localhost
+
+  - id: finance
+    type: FinanceAgent
+    module: agents.finance_agent
+    config:
+      port: 9003
+      name: Finance Agent
+    deployment:
+      target: localhost
+
+  - id: search
+    type: SearchAgent
+    module: agents.search_agent
+    config:
+      port: 9004
+      name: Search Agent
+    deployment:
+      target: localhost
+
+  - id: general
+    type: GeneralAgent
+    module: agents.general_agent
+    config:
+      port: 9001
+      name: General Agent
+    deployment:
+      target: localhost
+
+topology:
+  type: hub-spoke
+  hub: general
+  spokes:
+    - math
+    - finance
+    - search
+
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+execution:
+  entry_point: general
+  auto_start: true

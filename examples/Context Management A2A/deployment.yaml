@@ -1,0 +1,35 @@
+job:
+  name: context-management-test
+  version: 1.0.0
+  description: "Single agent for testing A2A native context management"
+  tags:
+    - agents
+    - a2a
+    - context
+    - testing
+
+agents:
+  - id: context_test
+    type: ContextTestAgent
+    module: agents.context_agent
+    config:
+      port: 9010
+      name: Context Test Agent
+    deployment:
+      target: localhost
+
+topology:
+  type: single
+  entry: context_test
+
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+execution:
+  entry_point: context_test
+  auto_start: true
