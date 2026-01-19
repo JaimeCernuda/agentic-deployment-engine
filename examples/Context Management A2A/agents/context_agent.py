@@ -416,7 +416,14 @@ class ContextTestAgent:
         # Build prompt with full conversation history
         conversation_prompt = self._build_conversation_prompt(context_history)
 
-        self.logger.debug(f"Full conversation prompt ({len(conversation_prompt)} chars):\n{conversation_prompt[:500]}...")
+        self.logger.info(f"\n{'='*70}")
+        self.logger.info(f"CONTEXT PASSED TO CLAUDE - Task: {task_id}")
+        self.logger.info(f"Context ID: {context_id}")
+        self.logger.info(f"History messages: {len(context_history)}")
+        self.logger.info(f"Prompt length: {len(conversation_prompt)} chars")
+        self.logger.info(f"{'='*70}")
+        self.logger.info(f"FULL PROMPT:\n{conversation_prompt}")
+        self.logger.info(f"{'='*70}\n")
 
         # Call Claude
         try:
