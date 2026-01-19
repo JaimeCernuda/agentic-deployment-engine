@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(source venv/bin/activate)",
+      "Bash(python test_context.py:*)",
+      "Bash(tee:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

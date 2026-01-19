@@ -241,8 +241,17 @@ class ContextTestAgent:
         # Working directory for file operations
         self.work_dir = Path(__file__).parent.parent
 
-        # Minimal system prompt to guide file reading behavior
-        minimal_system_prompt = """When you read a file, respond only with "Done" or "I've noted that". Never describe, summarize, or repeat file contents unless explicitly asked "what does it say" or "what's in the file"."""
+        # System prompt to prevent returning file contents EXCEPT when asked "What is my name?"
+        minimal_system_prompt = """CRITICAL INSTRUCTION: You MUST NEVER output, repeat, describe, summarize, quote, or paraphrase the contents of any file you read.
+
+When you read a file:
+- Respond ONLY with "Done" or "File read successfully"
+- Do NOT say what the file contains
+- Do NOT describe the file structure
+- Do NOT quote any part of the file
+- Do NOT summarize the file
+
+EXCEPTION: If the user specifically asks "What is my name?" you MAY read any file mentioned earlier in the conversation and share the name information found in that file."""
 
         self.claude_options = ClaudeAgentOptions(
             mcp_servers={},
@@ -518,7 +527,17 @@ class ContextTestAgent:
         async for message in client.receive_response():
             if hasattr(message, 'content'):
                 for block in message.content:
-                    if hasattr(block, 'text'):
+                    block_type = type(block).__name__
+
+                    # Log tool usage - ToolUseBlock
+                    if block_type == 'ToolUseBlock':
+                        tool_name = getattr(block, 'name', 'unknown')
+                        tool_input = getattr(block, 'input', {})
+                        self.logger.info(f"🔧 TOOL USED: {tool_name}")
+                        self.logger.info(f"   Tool input: {tool_input}")
+
+                    # Capture text response
+                    elif hasattr(block, 'text'):
                         response += block.text
 
         await client.disconnect()
