@@ -11,7 +11,8 @@
       "Bash(logs/math_task_stdout.log 2)",
       "Bash(logs/math_task_stderr.log)",
       "Bash(logs/finance_task_stdout.log 2)",
-      "Bash(logs/finance_task_stderr.log)"
+      "Bash(logs/finance_task_stderr.log)",
+      "Bash(pip show:*)"
     ],
     "deny": [],
     "ask": []

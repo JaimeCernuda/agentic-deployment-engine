@@ -1,7 +1,17 @@
+# A2A SDK oficial (para versiones con SDK)
+a2a-sdk[http-server]>=0.3.22
+
+# Claude Agent SDK (mantener para integración)
+claude-agent-sdk
+
+# Web frameworks (mantener para versión manual)
 fastapi
 uvicorn
 aiohttp
+
+# Data validation
 pydantic
-claude-agent-sdk
+
+# Utilities
 pyyaml
 requests
