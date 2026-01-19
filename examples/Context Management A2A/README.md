@@ -18,7 +18,7 @@ Empirically evaluate what information remains accessible in the agent's **active
 |------|--------|
 | 1 | User sends a very long text with irrelevant information ("filler") |
 | 2 | Within the text, the user's name appears **exactly once** |
-| 3 | One or more unrelated interaction turns occur (same `context_id`) |
+| 3 | One or more unrelated interaction turns occur |
 | 4 | User asks: **"What is my name?"** |
 
 **Objective:** Determine if the name remains accessible in context after dilution with irrelevant information and additional turns.
@@ -29,7 +29,7 @@ Empirically evaluate what information remains accessible in the agent's **active
 |------|--------|
 | 1 | User sends a file (txt, md, or pdf) containing only their name |
 | 2 | The name is **NOT** mentioned in the prompt text |
-| 3 | One or more unrelated interaction turns occur (same `context_id`) |
+| 3 | One or more unrelated interaction turns occur  |
 | 4 | User asks: **"What is my name?"** |
 
 **Objective:** Evaluate whether information contained in attached files is integrated and remains in the active context the same way as direct prompt text.
@@ -64,54 +64,7 @@ Empirically evaluate what information remains accessible in the agent's **active
 │  └──────────────────────────────────────────────────────────┘   │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
-```
 
-## A2A Context Management Flow
-
-```
-Client                              Agent (ContextTestAgent)
-  │                                         │
-  │  POST /query                            │
-  │  {query: "Hi, my name is Carmen",       │
-  │   context_id: null}                     │
-  │────────────────────────────────────────►│
-  │                                         │
-  │                                         │ Generate context_id: "ctx-abc123"
-  │                                         │ Create task_id: "task-001"
-  │                                         │ Store in TaskStore
-  │                                         │
-  │  {response: "Hello Carmen!",            │
-  │   context_id: "ctx-abc123",             │
-  │   task_id: "task-001"}                  │
-  │◄────────────────────────────────────────│
-  │                                         │
-  │  POST /query                            │
-  │  {query: "What is 2+2?",                │
-  │   context_id: "ctx-abc123"}  ◄── SAME   │
-  │────────────────────────────────────────►│
-  │                                         │
-  │                                         │ Create task_id: "task-002"
-  │                                         │ Get history from context
-  │                                         │ Build prompt with ALL messages
-  │                                         │
-  │  {response: "4",                        │
-  │   context_id: "ctx-abc123",             │
-  │   task_id: "task-002"}                  │
-  │◄────────────────────────────────────────│
-  │                                         │
-  │  POST /query                            │
-  │  {query: "What is my name?",            │
-  │   context_id: "ctx-abc123"}  ◄── SAME   │
-  │────────────────────────────────────────►│
-  │                                         │
-  │                                         │ Get ALL history from context
-  │                                         │ (includes "my name is Carmen")
-  │                                         │
-  │  {response: "Your name is Carmen",      │
-  │   context_id: "ctx-abc123",             │
-  │   task_id: "task-003"}                  │
-  │◄────────────────────────────────────────│
-```
 
 ## Project Structure
 
@@ -164,7 +117,7 @@ This agent tests A2A native context management.
   - Uses context_id to group conversations
   - Uses task_id to track individual tasks
   - Maintains in-memory message history per context
-  - NO system prompt (pure native behavior)
+ 
 ```
 
 ### 2. Run the Tests
@@ -204,35 +157,7 @@ python test_context.py --mode interactive
 | `--name` | User name for tests | `Carmen` |
 | `--url` | Agent URL | `http://localhost:9010` |
 
-### 4. Manual Queries with Context
 
-**First message (creates new context):**
-```bash
-curl -X POST http://localhost:9010/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "Hello, my name is Carmen"}'
-```
-
-**Response:**
-```json
-{
-  "response": "Hello Carmen!",
-  "context_id": "ctx-abc123def456",
-  "task_id": "task-xyz789",
-  "task": {...}
-}
-```
-
-**Follow-up message (same context):**
-```bash
-curl -X POST http://localhost:9010/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is my name?", "context_id": "ctx-abc123def456"}'
-```
-
-**Get context info:**
-```bash
-curl http://localhost:9010/context/ctx-abc123def456
 ```
 
 ## Agent Design Principles
@@ -243,7 +168,6 @@ The `ContextTestAgent` strictly follows these principles to ensure valid evaluat
 
 | Restriction | Justification |
 |-------------|---------------|
-| No system prompt | Zero interference with native model behavior |
 | Does not use external persistent memory | Evaluates only A2A in-memory context |
 | Does not use embeddings or vector stores | Avoids semantic retrieval mechanisms |
 | Does not implement relevance logic | Does not decide what information is "important" |
@@ -286,17 +210,6 @@ Agent could NOT recall the name
 - Context token limit reached
 - Previous messages truncated by the model
 - Attached file not integrated into message history
-
-## Metrics to Observe
-
-| Metric | Description |
-|--------|-------------|
-| **Retention rate** | % of times the name is correctly remembered |
-| **Degradation by turns** | How the number of intermediate turns affects retention |
-| **Volume impact** | Effect of "filler" text size |
-| **Text/file parity** | Difference between scenarios 1 and 2 |
-| **Tasks per context** | Number of tasks created in each scenario |
-| **Messages per context** | Total messages stored in context history |
 
 ## Agent Endpoints
 
@@ -361,18 +274,6 @@ python test_context.py --mode all --name "Test"
 # Timeouts are configured at 120 seconds
 ```
 
-### Context not being maintained
-
-Check that you are passing the `context_id` from the first response to subsequent queries:
-
-```python
-# First query - get context_id
-response1 = send_query("Hello, my name is Carmen")
-context_id = response1["context_id"]
-
-# Follow-up queries - use same context_id
-response2 = send_query("What is 2+2?", context_id=context_id)
-response3 = send_query("What is my name?", context_id=context_id)
 ```
 
 ---
