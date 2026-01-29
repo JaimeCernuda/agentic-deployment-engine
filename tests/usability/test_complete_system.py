@@ -1,7 +1,18 @@
-"""Complete system test - validates all components."""
+"""Complete system test - validates all components.
+
+This is an end-to-end test that deploys and tests the full system.
+Requires Claude SDK to be properly configured.
+
+Run with: uv run pytest -m e2e
+"""
 
 import asyncio
 from pathlib import Path
+
+import pytest
+
+# Mark all tests in this module as e2e tests
+pytestmark = pytest.mark.usability
 
 
 def print_section(title):
@@ -19,9 +30,9 @@ async def test_complete_system():
     print_section("TEST 1: Local Deployment (subprocess)")
     print("Testing: jobs/examples/simple-weather.yaml")
 
+    from src.jobs.deployer import AgentDeployer
     from src.jobs.loader import JobLoader
     from src.jobs.resolver import TopologyResolver
-    from src.jobs.deployer import AgentDeployer
 
     loader = JobLoader()
     job = loader.load("jobs/examples/simple-weather.yaml")

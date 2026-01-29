@@ -1,13 +1,18 @@
 """Simple test for weather agent MCP tools."""
-import anyio
 import sys
 from pathlib import Path
+
+import anyio
+import pytest
+
+pytestmark = [pytest.mark.usability, pytest.mark.slow]
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
-from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions, create_sdk_mcp_server
-from tools.weather_tools import get_weather, get_locations
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, create_sdk_mcp_server
+
+from tools.weather_tools import get_locations, get_weather
 
 # Track tool calls
 tool_calls = []
@@ -74,7 +79,7 @@ async def main():
                     # Capture tool results
                     if hasattr(block, 'tool_use_id') and hasattr(block, 'content'):
                         tool_result = block.content
-                        print(f"\n✓ Tool result received:")
+                        print("\n✓ Tool result received:")
                         for content_item in block.content:
                             if isinstance(content_item, dict) and content_item.get('type') == 'text':
                                 print(f"  {content_item.get('text')}")

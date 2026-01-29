@@ -1,11 +1,14 @@
 """Test SSH deployment (requires SSH server setup)."""
 
 import asyncio
-import os
-from pathlib import Path
+
+import pytest
+
+pytestmark = [pytest.mark.usability, pytest.mark.slow]
+
+from src.jobs.deployer import AgentDeployer
 from src.jobs.loader import JobLoader
 from src.jobs.resolver import TopologyResolver
-from src.jobs.deployer import AgentDeployer
 
 
 def check_ssh_available():

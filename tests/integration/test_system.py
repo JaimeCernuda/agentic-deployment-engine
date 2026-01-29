@@ -4,8 +4,10 @@ Test the clean MCP + A2A system.
 """
 
 import asyncio
+
 import httpx
 import pytest
+pytestmark = pytest.mark.integration
 
 
 @pytest.mark.asyncio

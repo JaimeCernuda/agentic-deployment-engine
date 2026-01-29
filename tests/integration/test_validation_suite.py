@@ -81,7 +81,7 @@ def test_validation_suite():
 
             print(f"\n{job.job.name}:")
             print(f"  Topology: {job.topology.type}")
-            print(f"  Deployment stages:")
+            print("  Deployment stages:")
             for idx, stage in enumerate(plan.stages):
                 print(f"    Stage {idx + 1}: {', '.join(stage)}")
 

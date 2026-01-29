@@ -2,7 +2,11 @@
 
 import asyncio
 import subprocess
+
 import httpx
+import pytest
+
+pytestmark = [pytest.mark.usability, pytest.mark.slow]
 
 
 def check_ssh_available():
@@ -39,9 +43,9 @@ async def test_ssh_localhost_deployment():
 
     print("   ✓ SSH to localhost is working")
 
+    from src.jobs.deployer import AgentDeployer
     from src.jobs.loader import JobLoader
     from src.jobs.resolver import TopologyResolver
-    from src.jobs.deployer import AgentDeployer
 
     # Load SSH job
     print("\n2. Loading job: jobs/examples/ssh-localhost.yaml")
@@ -104,7 +108,7 @@ async def test_ssh_localhost_deployment():
 
             if response.status_code == 200:
                 result = response.json()
-                print(f"   ✓ Query successful")
+                print("   ✓ Query successful")
                 print(f"   Response preview: {result.get('response', '')[:150]}...")
             else:
                 print(f"   ✗ Query failed: {response.status_code}")

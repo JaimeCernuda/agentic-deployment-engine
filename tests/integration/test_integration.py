@@ -2,14 +2,22 @@
 """
 Integration tests for A2A agents.
 Tests each agent individually and multi-agent coordination.
+
+These tests require running agents:
+- Weather Agent on port 9001
+- Maps Agent on port 9002
+- Controller Agent on port 9000
+
+Run with: uv run pytest -m integration
 """
 
-import pytest
-import httpx
-import asyncio
-import subprocess
-import time
 from pathlib import Path
+
+import httpx
+import pytest
+
+# Mark all tests in this module as integration tests
+pytestmark = pytest.mark.integration
 
 
 class TestAgentEndpoints:
@@ -204,13 +212,13 @@ class TestLogging:
 
     def test_log_directory_exists(self):
         """Test that logs directory exists."""
-        log_dir = Path(__file__).parent.parent / "logs"
+        log_dir = Path(__file__).parent.parent.parent / "logs"
         assert log_dir.exists()
         assert log_dir.is_dir()
 
     def test_agent_log_files_exist(self):
         """Test that agent log files are created."""
-        log_dir = Path(__file__).parent.parent / "logs"
+        log_dir = Path(__file__).parent.parent.parent / "logs"
 
         expected_logs = [
             "weather_agent.log",

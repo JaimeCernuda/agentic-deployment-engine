@@ -9,14 +9,22 @@ dependencies = [
     "pydantic>=2.5.0",
     "a2a-sdk>=0.1.0",
     "claude-agent-sdk @ git+https://github.com/anthropics/claude-agent-sdk-python.git@main",
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
     "pyyaml>=6.0.0",
     "typer>=0.9.0",
     "rich>=13.0.0",
     "paramiko>=3.0.0"
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "ruff>=0.2.0",
+    "mypy>=1.8.0",
+]
 
 [project.scripts]
 # A2A agents with SDK MCP integration
@@ -27,10 +35,8 @@ controller-agent = "agents.controller_agent:main"
 start-all = "src.start_all:main"
 # Job deployment CLI
 deploy = "src.jobs.cli:main"
-# Test scripts
-test-system = "tests.test_system:main"
-test-unit = "pytest:main"
-test-integration = "pytest:main"
+# Test scripts (see tests/ for organization: unit/, integration/, usability/)
+test-system = "tests.integration.test_system:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -41,3 +47,75 @@ allow-direct-references = true
 
 [tool.hatch.build.targets.wheel]
 packages = ["."]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+# Test directories: tests/unit/, tests/integration/, tests/usability/
+# Default runs unit tests only (fast, no external deps)
+# Run integration: uv run pytest tests/integration/ -v -m integration
+# Run usability: uv run pytest tests/usability/ -v -m usability
+# Run all: uv run pytest tests/ -v -m "unit or integration or usability"
+testpaths = ["tests/unit"]
+addopts = [
+    "--cov=src",
+    "--cov=tools",
+    "--cov=agents",
+    "--cov-report=term-missing",
+    "--cov-report=html:reports/coverage",
+    "--cov-fail-under=60",
+    "-v",
+]
+markers = [
+    "unit: marks unit tests (mocked, no external deps)",
+    "integration: marks integration tests (component coordination, may need files)",
+    "usability: marks usability/e2e tests (deploy real agents, verify behavior)",
+    "e2e: alias for usability tests",
+    "slow: marks tests as slow",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src", "tools", "agents"]
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+    "*/.venv/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+]
+show_missing = true
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+ignore_missing_imports = true

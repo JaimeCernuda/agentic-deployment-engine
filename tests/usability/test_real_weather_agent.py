@@ -1,8 +1,12 @@
 """Test the real weather agent with HTTP requests."""
 import asyncio
-import httpx
 import sys
 from pathlib import Path
+
+import httpx
+import pytest
+
+pytestmark = [pytest.mark.usability, pytest.mark.slow]
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))

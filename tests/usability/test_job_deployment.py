@@ -1,11 +1,22 @@
-"""Test job deployment system."""
+"""Test job deployment system.
+
+This is an end-to-end test that deploys and tests the job system.
+Requires Claude SDK to be properly configured.
+
+Run with: uv run pytest -m e2e
+"""
 
 import asyncio
+
 import httpx
-from pathlib import Path
+import pytest
+
+from src.jobs.deployer import AgentDeployer
 from src.jobs.loader import JobLoader
 from src.jobs.resolver import TopologyResolver
-from src.jobs.deployer import AgentDeployer
+
+# Mark all tests in this module as e2e tests
+pytestmark = pytest.mark.usability
 
 
 async def test_deployment():
@@ -64,7 +75,7 @@ async def test_deployment():
             )
             if response.status_code == 200:
                 result = response.json()
-                print(f"   ✓ Query successful")
+                print("   ✓ Query successful")
                 print(f"   Response: {result.get('response', 'N/A')[:200]}...")
             else:
                 print(f"   ✗ Query failed: {response.status_code}")

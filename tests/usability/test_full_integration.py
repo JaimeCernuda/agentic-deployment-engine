@@ -1,7 +1,18 @@
-"""Full integration test - complete deployment and communication test."""
+"""Full integration test - complete deployment and communication test.
+
+This is an end-to-end test that deploys and tests the full system.
+Requires Claude SDK to be properly configured.
+
+Run with: uv run pytest -m e2e
+"""
 
 import asyncio
+
 import httpx
+import pytest
+
+# Mark all tests in this module as e2e tests
+pytestmark = pytest.mark.usability
 
 
 async def test_full_integration():
@@ -10,9 +21,9 @@ async def test_full_integration():
     print("FULL INTEGRATION TEST")
     print("=" * 80)
 
+    from src.jobs.deployer import AgentDeployer
     from src.jobs.loader import JobLoader
     from src.jobs.resolver import TopologyResolver
-    from src.jobs.deployer import AgentDeployer
 
     # Load and deploy
     print("\n1. Loading job: jobs/examples/simple-weather.yaml")
@@ -59,7 +70,7 @@ async def test_full_integration():
 
         if response.status_code == 200:
             result = response.json()
-            print(f"   ✓ Query successful")
+            print("   ✓ Query successful")
             print(f"   Response preview: {result.get('response', '')[:150]}...")
         else:
             print(f"   ✗ Query failed: {response.status_code}")
