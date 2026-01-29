@@ -130,11 +130,13 @@ class BaseA2AAgent(ABC):
 
         # Use bypassPermissions mode for autonomous agent operation
         # This allows agents to use their tools without interactive user approval
+        # setting_sources=[] prevents external settings from overriding permission_mode
         self.claude_options = ClaudeAgentOptions(
             mcp_servers=mcp_servers,
             allowed_tools=allowed_tools,
             system_prompt=self._active_system_prompt,
             permission_mode="bypassPermissions",
+            setting_sources=[],
         )
 
         # Client pool for connection reuse (P1-1 fix)
@@ -388,6 +390,7 @@ Always be concise and professional in your responses."""
                 allowed_tools=self.claude_options.allowed_tools,
                 system_prompt=self._active_system_prompt,
                 permission_mode="bypassPermissions",
+                setting_sources=[],
             )
 
         self.logger.debug(f"Updated system prompt ({len(self._active_system_prompt)} chars)")
