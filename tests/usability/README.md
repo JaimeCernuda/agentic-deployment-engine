@@ -6,10 +6,9 @@ They serve as both tests AND examples for users.
 ## Prerequisites
 
 1. **Python 3.11+** with `uv` installed
-2. **Claude API key** set in environment:
-   ```bash
-   export ANTHROPIC_API_KEY="your-key-here"
-   ```
+2. **Dependencies installed**: `uv sync`
+
+Note: The Claude Agent SDK does NOT require an ANTHROPIC_API_KEY.
 
 ## Running Tests
 
