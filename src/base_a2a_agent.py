@@ -5,20 +5,27 @@ Provides A2A capabilities with clean inheritance and dynamic agent connections.
 """
 
 import asyncio
+import atexit
 import logging
+import signal
+import sys
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
-from claude_agent_sdk import ClaudeSDKClient, ClaudeAgentOptions
-from fastapi import FastAPI
-from pydantic import BaseModel
-import uvicorn
 from pathlib import Path
+from typing import Any
+
+import uvicorn
+from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
+from fastapi import Depends, FastAPI
+from pydantic import BaseModel
+
 from .agent_registry import AgentRegistry
+from .auth import verify_api_key
+from .permissions import PermissionPreset, filter_allowed_tools
 
 
 class QueryRequest(BaseModel):
     query: str
-    context: Dict[str, Any] = {}
+    context: dict[str, Any] = {}
 
 
 class QueryResponse(BaseModel):
@@ -39,17 +46,23 @@ class BaseA2AAgent(ABC):
         port: int,
         sdk_mcp_server=None,
         system_prompt: str = None,
-        connected_agents: Optional[List[str]] = None
+        connected_agents: list[str] | None = None,
+        permission_preset: PermissionPreset = PermissionPreset.FULL_ACCESS,
+        custom_permission_rules: list[str] | None = None,
     ):
         self.name = name
         self.description = description
         self.port = port
         self.connected_agents = connected_agents or []
         self.agent_registry = AgentRegistry() if connected_agents else None
+        self.permission_preset = permission_preset
+        self.custom_permission_rules = custom_permission_rules
 
-        # System prompt will be set after agent discovery if needed
+        # System prompt - immutable after initialization for thread safety
+        # Use _base_system_prompt for the original, _active_system_prompt for current
         self._base_system_prompt = system_prompt or self._get_default_system_prompt()
-        self.system_prompt = self._base_system_prompt
+        self._active_system_prompt: str = self._base_system_prompt
+        self._options_lock = asyncio.Lock()  # Protects claude_options updates
 
         # Setup logging in local logs directory
         log_dir = Path(__file__).parent / "logs"
@@ -63,7 +76,7 @@ class BaseA2AAgent(ABC):
         self.logger.handlers.clear()
 
         # File handler with detailed formatting
-        fh = logging.FileHandler(log_file, mode='a')
+        fh = logging.FileHandler(log_file, mode="a")
         fh.setLevel(logging.DEBUG)
 
         # Console handler
@@ -72,10 +85,12 @@ class BaseA2AAgent(ABC):
 
         # Detailed formatter for file logs
         file_formatter = logging.Formatter(
-            '%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s'
+            "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
         )
         # Simple formatter for console
-        console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        console_formatter = logging.Formatter(
+            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+        )
 
         fh.setFormatter(file_formatter)
         ch.setFormatter(console_formatter)
@@ -92,29 +107,57 @@ class BaseA2AAgent(ABC):
             server_key = self.name.lower().replace(" ", "_")
             mcp_servers[server_key] = sdk_mcp_server
             self.logger.debug(f"SDK MCP server configured with key: {server_key}")
-            self.logger.debug(f"SDK server type: {sdk_mcp_server.get('type') if isinstance(sdk_mcp_server, dict) else type(sdk_mcp_server)}")
+            self.logger.debug(
+                f"SDK server type: {sdk_mcp_server.get('type') if isinstance(sdk_mcp_server, dict) else type(sdk_mcp_server)}"
+            )
 
             # Log SDK server tools if available
-            if isinstance(sdk_mcp_server, dict) and 'instance' in sdk_mcp_server:
-                server_instance = sdk_mcp_server['instance']
-                if hasattr(server_instance, 'list_tools'):
-                    self.logger.debug(f"SDK MCP server has list_tools method")
+            if isinstance(sdk_mcp_server, dict) and "instance" in sdk_mcp_server:
+                server_instance = sdk_mcp_server["instance"]
+                if hasattr(server_instance, "list_tools"):
+                    self.logger.debug("SDK MCP server has list_tools method")
 
         allowed_tools = self._get_allowed_tools()
+        # Filter tools based on permission preset
+        if permission_preset != PermissionPreset.FULL_ACCESS:
+            allowed_tools = filter_allowed_tools(
+                allowed_tools, permission_preset, custom_permission_rules
+            )
         self.logger.debug(f"Allowed tools: {allowed_tools}")
-        self.logger.debug(f"System prompt length: {len(self.system_prompt)} chars")
-        self.logger.debug(f"System prompt preview: {self.system_prompt[:200]}...")
+        self.logger.debug(f"Permission preset: {permission_preset.value}")
+        self.logger.debug(f"System prompt length: {len(self._active_system_prompt)} chars")
+        self.logger.debug(f"System prompt preview: {self._active_system_prompt[:200]}...")
 
+        # Use bypassPermissions mode for autonomous agent operation
+        # This allows agents to use their tools without interactive user approval
         self.claude_options = ClaudeAgentOptions(
             mcp_servers=mcp_servers,
             allowed_tools=allowed_tools,
-            system_prompt=self.system_prompt
+            system_prompt=self._active_system_prompt,
+            permission_mode="bypassPermissions",
         )
-        self.claude_client = None
+
+        # Client pool for connection reuse (P1-1 fix)
+        # Creating a fresh client per query is 10-100x slower
+        self._pool_size = 3
+        self._client_pool: asyncio.Queue[ClaudeSDKClient] = asyncio.Queue(
+            maxsize=self._pool_size
+        )
+        self._pool_initialized = False
+        self._pool_lock = asyncio.Lock()
+        self.claude_client = None  # Kept for backwards compatibility
 
         # Create A2A endpoints
         self.app = FastAPI(title=name, description=description)
         self._setup_routes()
+
+        # Track cleanup state
+        self._cleanup_done = False
+
+        # Register cleanup handlers for graceful shutdown
+        atexit.register(self._sync_cleanup)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+        signal.signal(signal.SIGINT, self._signal_handler)
 
     def _setup_routes(self):
         """Setup A2A discovery and query endpoints."""
@@ -126,13 +169,10 @@ class BaseA2AAgent(ABC):
                 "description": self.description,
                 "url": f"http://localhost:{self.port}",
                 "version": "1.0.0",
-                "capabilities": {
-                    "streaming": True,
-                    "push_notifications": False
-                },
+                "capabilities": {"streaming": True, "push_notifications": False},
                 "default_input_modes": ["text"],
                 "default_output_modes": ["text"],
-                "skills": self._get_skills()
+                "skills": self._get_skills(),
             }
 
         @self.app.get("/health")
@@ -140,35 +180,93 @@ class BaseA2AAgent(ABC):
             return {"status": "healthy", "agent": self.name}
 
         @self.app.post("/query", response_model=QueryResponse)
-        async def query(request: QueryRequest):
+        async def query(
+            request: QueryRequest,
+            api_key: str | None = Depends(verify_api_key),
+        ):
+            """Query endpoint with optional API key authentication.
+
+            Authentication is controlled by AGENT_AUTH_REQUIRED env var.
+            If set to 'true', requests must include X-API-Key header or
+            api_key query parameter matching AGENT_API_KEY.
+            """
             response = await self._handle_query(request.query)
             return QueryResponse(response=response)
 
+    async def _initialize_pool(self) -> None:
+        """Initialize the client pool with pre-connected clients.
+
+        This is called lazily on first query to avoid blocking startup.
+        """
+        async with self._pool_lock:
+            if self._pool_initialized:
+                return
+
+            self.logger.info(
+                f"Initializing client pool with {self._pool_size} clients..."
+            )
+
+            for i in range(self._pool_size):
+                try:
+                    client = ClaudeSDKClient(self.claude_options)
+                    await client.connect()
+                    await self._client_pool.put(client)
+                    self.logger.debug(
+                        f"Pool client {i + 1}/{self._pool_size} connected"
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to create pool client {i + 1}: {e}")
+                    # Continue with fewer clients rather than failing entirely
+
+            self._pool_initialized = True
+            self.logger.info(
+                f"Client pool initialized with {self._client_pool.qsize()} clients"
+            )
+
+    async def _get_pooled_client(self) -> ClaudeSDKClient:
+        """Get a client from the pool, initializing if needed.
+
+        Returns:
+            A connected ClaudeSDKClient from the pool.
+        """
+        await self._initialize_pool()
+
+        # Get client from pool (blocks if pool is empty)
+        client = await self._client_pool.get()
+        self.logger.debug(
+            f"Got client from pool ({self._client_pool.qsize()} remaining)"
+        )
+        return client
+
+    async def _return_client(self, client: ClaudeSDKClient) -> None:
+        """Return a client to the pool.
+
+        Args:
+            client: The client to return to the pool.
+        """
+        await self._client_pool.put(client)
+        self.logger.debug(
+            f"Returned client to pool ({self._client_pool.qsize()} available)"
+        )
+
     async def _get_claude_client(self) -> ClaudeSDKClient:
-        """Get claude-code-sdk client."""
-        if self.claude_client is None:
-            self.logger.info("Creating ClaudeSDKClient...")
-            try:
-                self.claude_client = ClaudeSDKClient(self.claude_options)
-                self.logger.info("Connecting to Claude CLI...")
-                await self.claude_client.connect()
-                self.logger.info("Successfully connected to Claude CLI")
-            except Exception as e:
-                self.logger.error(f"Failed to create/connect ClaudeSDKClient: {e}", exc_info=True)
-                raise
-        return self.claude_client
+        """Get claude-code-sdk client (legacy method, uses pool now)."""
+        return await self._get_pooled_client()
 
     async def _handle_query(self, query: str) -> str:
-        """Handle query using claude-code-sdk."""
+        """Handle query using pooled claude-code-sdk client.
+
+        Uses connection pooling for 10-100x better performance than
+        creating a fresh client per query.
+        """
         self.logger.info(f"Handling query: {query}")
         self.logger.debug(f"Query length: {len(query)} chars")
 
+        client = None
         try:
-            # Create a FRESH client for each query to avoid state issues
-            self.logger.info("Creating fresh ClaudeSDKClient for this query...")
-            client = ClaudeSDKClient(self.claude_options)
-            await client.connect()
-            self.logger.info("Successfully connected to Claude CLI")
+            # Get a pre-connected client from the pool
+            client = await self._get_pooled_client()
+            self.logger.debug("Using pooled client for query")
 
             self.logger.debug("Sending query to Claude...")
             await client.query(query)
@@ -184,55 +282,77 @@ class BaseA2AAgent(ABC):
                 self.logger.debug(f"Message {message_count}: {message_type}")
 
                 # Log message details based on type
-                if hasattr(message, 'role'):
+                if hasattr(message, "role"):
                     self.logger.debug(f"  Role: {message.role}")
 
-                if hasattr(message, 'content'):
+                if hasattr(message, "content"):
                     for i, block in enumerate(message.content):
                         block_type = type(block).__name__
                         self.logger.debug(f"  Content block {i}: {block_type}")
 
-                        if hasattr(block, 'text'):
-                            text_preview = block.text[:200] if len(block.text) > 200 else block.text
+                        if hasattr(block, "text"):
+                            text_preview = (
+                                block.text[:200]
+                                if len(block.text) > 200
+                                else block.text
+                            )
                             self.logger.debug(f"    Text: {text_preview}...")
                             response += block.text
 
-                        if hasattr(block, 'name'):
+                        if hasattr(block, "name"):
                             tool_use_count += 1
                             self.logger.debug(f"    Tool: {block.name}")
-                            if hasattr(block, 'input'):
+                            if hasattr(block, "input"):
                                 self.logger.debug(f"    Input: {block.input}")
 
                         # Log tool results (success or error)
-                        if hasattr(block, 'tool_use_id'):
-                            self.logger.debug(f"    Tool Result for: {block.tool_use_id}")
-                            if hasattr(block, 'content'):
-                                self.logger.debug(f"    Result content: {block.content}")
-                            if hasattr(block, 'is_error'):
+                        if hasattr(block, "tool_use_id"):
+                            self.logger.debug(
+                                f"    Tool Result for: {block.tool_use_id}"
+                            )
+                            if hasattr(block, "content"):
+                                self.logger.debug(
+                                    f"    Result content: {block.content}"
+                                )
+                            if hasattr(block, "is_error"):
                                 self.logger.debug(f"    Is error: {block.is_error}")
 
-                if hasattr(message, 'stop_reason'):
+                if hasattr(message, "stop_reason"):
                     self.logger.debug(f"  Stop reason: {message.stop_reason}")
 
-            # Disconnect after query
-            await client.disconnect()
-
-            self.logger.info(f"Query completed. Messages: {message_count}, Tools used: {tool_use_count}, Response: {len(response)} chars")
+            self.logger.info(
+                f"Query completed. Messages: {message_count}, "
+                f"Tools used: {tool_use_count}, Response: {len(response)} chars"
+            )
             return response or "No response generated"
 
         except Exception as e:
             self.logger.error(f"Error handling query: {e}", exc_info=True)
             return f"Error: {str(e)}"
 
+        finally:
+            # Always return client to pool
+            if client:
+                await self._return_client(client)
+
     @abstractmethod
-    def _get_skills(self) -> List[Dict[str, Any]]:
+    def _get_skills(self) -> list[dict[str, Any]]:
         """Define agent skills for A2A discovery."""
         pass
 
     @abstractmethod
-    def _get_allowed_tools(self) -> List[str]:
+    def _get_allowed_tools(self) -> list[str]:
         """Define allowed tools for claude-code-sdk."""
         pass
+
+    @property
+    def system_prompt(self) -> str:
+        """Get the active system prompt (read-only for thread safety).
+
+        Returns:
+            The current active system prompt.
+        """
+        return self._active_system_prompt
 
     def _get_default_system_prompt(self) -> str:
         """Get default system prompt for this agent."""
@@ -241,29 +361,36 @@ class BaseA2AAgent(ABC):
 You have access to specialized tools for your domain. Use them to provide accurate and helpful responses.
 Always be concise and professional in your responses."""
 
-    async def _discover_agents(self):
-        """Discover connected agents and update system prompt."""
+    async def _discover_agents(self) -> None:
+        """Discover connected agents and update system prompt.
+
+        Thread-safe: Uses a lock when updating claude_options.
+        """
         if not self.agent_registry or not self.connected_agents:
             return
 
-        self.logger.info(f"Discovering {len(self.connected_agents)} connected agents...")
+        self.logger.info(
+            f"Discovering {len(self.connected_agents)} connected agents..."
+        )
         discovered = await self.agent_registry.discover_multiple(self.connected_agents)
         self.logger.info(f"Successfully discovered {len(discovered)} agents")
 
-        # Update system prompt with discovered agent info
-        self.system_prompt = self.agent_registry.generate_system_prompt(
-            self._base_system_prompt,
-            self.connected_agents
+        # Generate updated system prompt with discovered agent info
+        new_system_prompt = self.agent_registry.generate_system_prompt(
+            self._base_system_prompt, self.connected_agents
         )
 
-        # Recreate claude options with updated system prompt
-        self.claude_options = ClaudeAgentOptions(
-            mcp_servers=self.claude_options.mcp_servers,
-            allowed_tools=self.claude_options.allowed_tools,
-            system_prompt=self.system_prompt
-        )
+        # Thread-safe update of claude_options
+        async with self._options_lock:
+            self._active_system_prompt = new_system_prompt
+            self.claude_options = ClaudeAgentOptions(
+                mcp_servers=self.claude_options.mcp_servers,
+                allowed_tools=self.claude_options.allowed_tools,
+                system_prompt=self._active_system_prompt,
+                permission_mode="bypassPermissions",
+            )
 
-        self.logger.debug(f"Updated system prompt ({len(self.system_prompt)} chars)")
+        self.logger.debug(f"Updated system prompt ({len(self._active_system_prompt)} chars)")
 
     def run(self):
         """Run the A2A agent."""
@@ -274,9 +401,77 @@ Always be concise and professional in your responses."""
 
         uvicorn.run(self.app, host="0.0.0.0", port=self.port)
 
-    async def cleanup(self):
-        """Cleanup resources."""
+    def _signal_handler(self, signum: int, frame) -> None:
+        """Handle shutdown signals gracefully.
+
+        Args:
+            signum: Signal number received
+            frame: Current stack frame
+        """
+        signal_name = signal.Signals(signum).name
+        self.logger.info(f"Received {signal_name}, initiating graceful shutdown...")
+        self._sync_cleanup()
+        sys.exit(0)
+
+    def _sync_cleanup(self) -> None:
+        """Synchronous cleanup wrapper for atexit and signal handlers."""
+        if self._cleanup_done:
+            return
+
+        try:
+            # Create new event loop if needed (atexit may not have one)
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+
+            loop.run_until_complete(self.cleanup())
+        except Exception as e:
+            self.logger.error(f"Error during cleanup: {e}")
+
+    async def cleanup(self) -> None:
+        """Cleanup resources asynchronously.
+
+        Closes SDK clients, agent registry connections, and logging handlers.
+        Safe to call multiple times.
+        """
+        if self._cleanup_done:
+            return
+
+        self._cleanup_done = True
+        self.logger.info("Cleaning up agent resources...")
+
+        # Cleanup all clients in the pool
+        clients_closed = 0
+        while not self._client_pool.empty():
+            try:
+                client = self._client_pool.get_nowait()
+                await client.disconnect()
+                clients_closed += 1
+            except asyncio.QueueEmpty:
+                break
+            except Exception as e:
+                self.logger.error(f"Error disconnecting pool client: {e}")
+
+        if clients_closed > 0:
+            self.logger.debug(f"Closed {clients_closed} pooled clients")
+
+        # Cleanup legacy client if exists
         if self.claude_client:
-            await self.claude_client.disconnect()
+            try:
+                await self.claude_client.disconnect()
+                self.logger.debug("Legacy Claude SDK client disconnected")
+            except Exception as e:
+                self.logger.error(f"Error disconnecting Claude client: {e}")
+            self.claude_client = None
+
+        # Cleanup agent registry
         if self.agent_registry:
-            await self.agent_registry.cleanup()
+            try:
+                await self.agent_registry.cleanup()
+                self.logger.debug("Agent registry cleaned up")
+            except Exception as e:
+                self.logger.error(f"Error cleaning up agent registry: {e}")
+
+        self.logger.info("Agent cleanup complete")

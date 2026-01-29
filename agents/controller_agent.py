@@ -3,10 +3,11 @@
 Now uses SDK MCP A2A transport with dynamic agent discovery.
 """
 
-import asyncio
-from typing import Dict, Any, List
-from src.base_a2a_agent import BaseA2AAgent
+from typing import Any
+
 from src.a2a_transport import create_a2a_transport_server
+from src.base_a2a_agent import BaseA2AAgent
+from src.permissions import PermissionPreset
 
 
 class ControllerAgent(BaseA2AAgent):
@@ -15,7 +16,12 @@ class ControllerAgent(BaseA2AAgent):
     Uses SDK MCP A2A transport for efficient communication and dynamic agent discovery.
     """
 
-    def __init__(self, port: int = 9000, connected_agents: List[str] = None):
+    def __init__(
+        self,
+        port: int = 9000,
+        connected_agents: list[str] = None,
+        permission_preset: PermissionPreset = PermissionPreset.FULL_ACCESS,
+    ):
         # Default to Weather and Maps agents if not specified
         if connected_agents is None:
             connected_agents = [
@@ -26,18 +32,26 @@ class ControllerAgent(BaseA2AAgent):
         # Base system prompt (agent info will be added dynamically)
         system_prompt = """You are a Controller Agent responsible for coordinating multiple specialized agents via the A2A (Agent-to-Agent) protocol.
 
-You have access to the mcp__a2a_transport__query_agent tool to communicate with other agents efficiently.
+**IMPORTANT: You MUST use the SDK MCP tools available to you:**
+- `mcp__controller_agent__query_agent`: Query another agent via HTTP POST
+- `mcp__controller_agent__discover_agent`: Discover agent capabilities
 
 When users ask questions:
 1. Identify which agent(s) can help answer the question
-2. Use the query_agent tool to get information from relevant agents
+2. Use the mcp__controller_agent__query_agent tool to get information from relevant agents
 3. Synthesize responses from multiple agents when needed
 4. Provide comprehensive, well-formatted answers
+
+**DO NOT:**
+- Try to query agents via HTTP/curl directly
+- Use the Bash tool for agent communication
+- Guess information - always use the tools to query other agents
 
 Always be helpful and coordinate effectively between agents to provide the best possible responses."""
 
         # Create SDK MCP server with A2A transport tools
-        a2a_server = create_a2a_transport_server()
+        # Pass the name to match dictionary key (controller_agent)
+        a2a_server = create_a2a_transport_server(name="controller_agent")
 
         super().__init__(
             name="Controller Agent",
@@ -45,10 +59,11 @@ Always be helpful and coordinate effectively between agents to provide the best 
             port=port,
             sdk_mcp_server=a2a_server,
             system_prompt=system_prompt,
-            connected_agents=connected_agents
+            connected_agents=connected_agents,
+            permission_preset=permission_preset,
         )
 
-    def _get_skills(self) -> List[Dict[str, Any]]:
+    def _get_skills(self) -> list[dict[str, Any]]:
         """Define controller agent skills for A2A discovery."""
         return [
             {
@@ -75,9 +90,14 @@ Always be helpful and coordinate effectively between agents to provide the best 
             }
         ]
 
-    def _get_allowed_tools(self) -> List[str]:
-        """Controller uses SDK MCP A2A transport tools."""
-        return ["mcp__a2a_transport__query_agent", "mcp__a2a_transport__discover_agent"]
+    def _get_allowed_tools(self) -> list[str]:
+        """Controller uses SDK MCP A2A transport tools.
+
+        Tool naming: mcp__<server_key>__<tool_name>
+        Server key comes from dict key in base_a2a_agent.py which uses
+        self.name.lower().replace(" ", "_") = "controller_agent"
+        """
+        return ["mcp__controller_agent__query_agent", "mcp__controller_agent__discover_agent"]
 
 
 def main():

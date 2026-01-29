@@ -4,13 +4,92 @@ SDK MCP A2A Transport Tool.
 Provides query_agent tool for efficient HTTP-based A2A communication.
 Based on evaluation_a2a_transport SDK implementation.
 """
-from claude_agent_sdk import tool, create_sdk_mcp_server
+
+import ipaddress
+import os
+from typing import Any
+from urllib.parse import urlparse
+
 import httpx
-from typing import Dict, Any
+from claude_agent_sdk import create_sdk_mcp_server, tool
 
 
-@tool("query_agent", "Query another agent via A2A protocol", {"agent_url": str, "query": str})
-async def query_agent(args: Dict[str, Any]) -> Dict[str, Any]:
+# SSRF Protection Configuration
+# Can be overridden via environment variables
+def _get_allowed_hosts() -> set[str]:
+    """Get allowed hosts from environment or defaults."""
+    env_hosts = os.getenv("AGENT_ALLOWED_HOSTS", "")
+    if env_hosts:
+        return {h.strip() for h in env_hosts.split(",") if h.strip()}
+    return {"localhost", "127.0.0.1"}
+
+
+def _get_allowed_port_range() -> tuple[int, int]:
+    """Get allowed port range from environment or defaults."""
+    min_port = int(os.getenv("AGENT_MIN_PORT", "9000"))
+    max_port = int(os.getenv("AGENT_MAX_PORT", "9100"))
+    return (min_port, max_port)
+
+
+def is_safe_url(url: str) -> bool:
+    """Validate URL is safe to request (SSRF protection).
+
+    Args:
+        url: URL to validate
+
+    Returns:
+        True if URL is safe to request, False otherwise
+    """
+    try:
+        parsed = urlparse(url)
+
+        # Must be http or https
+        if parsed.scheme not in ("http", "https"):
+            return False
+
+        # Must have a hostname
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+
+        allowed_hosts = _get_allowed_hosts()
+        port_range = _get_allowed_port_range()
+
+        # Check if it's an IP address
+        try:
+            ip = ipaddress.ip_address(hostname)
+            # Block dangerous IP ranges (AWS metadata, link-local, etc.)
+            if ip.is_link_local:  # 169.254.x.x - AWS metadata, etc.
+                return False
+            if ip.is_multicast:
+                return False
+            # For private/loopback IPs, must be in allowlist
+            if ip.is_private or ip.is_loopback:
+                if hostname not in allowed_hosts and str(ip) not in allowed_hosts:
+                    return False
+        except ValueError:
+            # Not an IP address, it's a hostname
+            if hostname not in allowed_hosts:
+                return False
+
+        # Check port
+        port = parsed.port
+        if port is None:
+            port = 443 if parsed.scheme == "https" else 80
+        if not (port_range[0] <= port <= port_range[1]):
+            return False
+
+        return True
+    except Exception:
+        return False
+
+
+@tool(
+    "query_agent",
+    "Query another agent via A2A protocol",
+    {"agent_url": str, "query": str},
+)
+async def query_agent(args: dict[str, Any]) -> dict[str, Any]:
     """Query another agent via direct HTTP POST to /query endpoint.
 
     Args:
@@ -26,65 +105,69 @@ async def query_agent(args: Dict[str, Any]) -> Dict[str, Any]:
 
     if not agent_url:
         return {
-            "content": [{
-                "type": "text",
-                "text": "Error: agent_url is required"
-            }],
-            "is_error": True
+            "content": [{"type": "text", "text": "Error: agent_url is required"}],
+            "is_error": True,
         }
 
     if not query:
         return {
-            "content": [{
-                "type": "text",
-                "text": "Error: query is required"
-            }],
-            "is_error": True
+            "content": [{"type": "text", "text": "Error: query is required"}],
+            "is_error": True,
+        }
+
+    # SSRF Protection: Validate URL before making request
+    if not is_safe_url(agent_url):
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Error: Invalid or blocked agent URL. Only allowed hosts/ports permitted.",
+                }
+            ],
+            "is_error": True,
         }
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                f"{agent_url}/query",
-                json={"query": query}
-            )
+            response = await client.post(f"{agent_url}/query", json={"query": query})
             response.raise_for_status()
             result = response.json()
 
             return {
-                "content": [{
-                    "type": "text",
-                    "text": result.get("response", "No response")
-                }]
+                "content": [
+                    {"type": "text", "text": result.get("response", "No response")}
+                ]
             }
     except httpx.TimeoutException:
         return {
-            "content": [{
-                "type": "text",
-                "text": f"Error: Request to {agent_url} timed out"
-            }],
-            "is_error": True
+            "content": [
+                {"type": "text", "text": f"Error: Request to {agent_url} timed out"}
+            ],
+            "is_error": True,
         }
     except httpx.HTTPStatusError as e:
         return {
-            "content": [{
-                "type": "text",
-                "text": f"Error: HTTP {e.response.status_code} from {agent_url}"
-            }],
-            "is_error": True
+            "content": [
+                {
+                    "type": "text",
+                    "text": f"Error: HTTP {e.response.status_code} from {agent_url}",
+                }
+            ],
+            "is_error": True,
         }
     except Exception as e:
         return {
-            "content": [{
-                "type": "text",
-                "text": f"Error querying {agent_url}: {str(e)}"
-            }],
-            "is_error": True
+            "content": [
+                {"type": "text", "text": f"Error querying {agent_url}: {str(e)}"}
+            ],
+            "is_error": True,
         }
 
 
-@tool("discover_agent", "Discover agent capabilities via A2A protocol", {"agent_url": str})
-async def discover_agent(args: Dict[str, Any]) -> Dict[str, Any]:
+@tool(
+    "discover_agent", "Discover agent capabilities via A2A protocol", {"agent_url": str}
+)
+async def discover_agent(args: dict[str, Any]) -> dict[str, Any]:
     """Discover agent capabilities via /.well-known/agent-configuration endpoint.
 
     Args:
@@ -98,18 +181,25 @@ async def discover_agent(args: Dict[str, Any]) -> Dict[str, Any]:
 
     if not agent_url:
         return {
-            "content": [{
-                "type": "text",
-                "text": "Error: agent_url is required"
-            }],
-            "is_error": True
+            "content": [{"type": "text", "text": "Error: agent_url is required"}],
+            "is_error": True,
+        }
+
+    # SSRF Protection: Validate URL before making request
+    if not is_safe_url(agent_url):
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Error: Invalid or blocked agent URL. Only allowed hosts/ports permitted.",
+                }
+            ],
+            "is_error": True,
         }
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(
-                f"{agent_url}/.well-known/agent-configuration"
-            )
+            response = await client.get(f"{agent_url}/.well-known/agent-configuration")
             response.raise_for_status()
             config = response.json()
 
@@ -124,30 +214,29 @@ async def discover_agent(args: Dict[str, Any]) -> Dict[str, Any]:
                 skill_desc = skill.get("description", "")
                 result_text += f"- {skill_name}: {skill_desc}\n"
 
-            return {
-                "content": [{
-                    "type": "text",
-                    "text": result_text
-                }]
-            }
+            return {"content": [{"type": "text", "text": result_text}]}
     except Exception as e:
         return {
-            "content": [{
-                "type": "text",
-                "text": f"Error discovering {agent_url}: {str(e)}"
-            }],
-            "is_error": True
+            "content": [
+                {"type": "text", "text": f"Error discovering {agent_url}: {str(e)}"}
+            ],
+            "is_error": True,
         }
 
 
-def create_a2a_transport_server():
+def create_a2a_transport_server(name: str | None = None):
     """Create SDK MCP server with A2A transport tools.
+
+    Args:
+        name: Optional server name. If not provided, defaults to "a2a_transport".
+              This name is used in tool naming: mcp__<name>__<tool_name>.
+              For correct tool permissions, this should match the dictionary key
+              used when registering the server (typically agent_name.lower().replace(" ", "_")).
 
     Returns:
         SDK MCP server configured with query_agent and discover_agent tools
     """
+    server_name = name or "a2a_transport"
     return create_sdk_mcp_server(
-        name="a2a_transport",
-        version="1.0.0",
-        tools=[query_agent, discover_agent]
+        name=server_name, version="1.0.0", tools=[query_agent, discover_agent]
     )

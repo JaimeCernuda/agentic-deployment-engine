@@ -1,9 +1,12 @@
 """Weather Agent using claude-code-sdk properly with SDK MCP server."""
 
-from typing import Dict, Any, List
+from typing import Any
+
 from claude_agent_sdk import create_sdk_mcp_server
+
 from src.base_a2a_agent import BaseA2AAgent
-from tools.weather_tools import get_weather, get_locations
+from src.permissions import PermissionPreset
+from tools.weather_tools import get_locations, get_weather
 
 
 class WeatherAgent(BaseA2AAgent):
@@ -13,7 +16,11 @@ class WeatherAgent(BaseA2AAgent):
     MCP server for weather functionality.
     """
 
-    def __init__(self, port: int = 9001):
+    def __init__(
+        self,
+        port: int = 9001,
+        permission_preset: PermissionPreset = PermissionPreset.FULL_ACCESS,
+    ):
         # Create SDK MCP server with weather tools
         # IMPORTANT: Server name must match the dictionary key used in base_a2a_agent.py
         # which is self.name.lower().replace(" ", "_") = "weather_agent"
@@ -46,10 +53,11 @@ class WeatherAgent(BaseA2AAgent):
             description="Intelligent weather analysis using SDK MCP tools",
             port=port,
             sdk_mcp_server=weather_sdk_server,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            permission_preset=permission_preset,
         )
 
-    def _get_skills(self) -> List[Dict[str, Any]]:
+    def _get_skills(self) -> list[dict[str, Any]]:
         """Define weather agent skills for A2A discovery."""
         return [
             {
@@ -75,7 +83,7 @@ class WeatherAgent(BaseA2AAgent):
             }
         ]
 
-    def _get_allowed_tools(self) -> List[str]:
+    def _get_allowed_tools(self) -> list[str]:
         """Allow Weather SDK MCP tools."""
         # Tool naming: mcp__<server_key>__<tool_name>
         # Server key comes from dict key in base_a2a_agent.py = "weather_agent"

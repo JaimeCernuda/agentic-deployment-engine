@@ -1,9 +1,12 @@
 """Maps Agent using claude-code-sdk properly with SDK MCP server."""
 
-from typing import Dict, Any, List
+from typing import Any
+
 from claude_agent_sdk import create_sdk_mcp_server
+
 from src.base_a2a_agent import BaseA2AAgent
-from tools.maps_tools import get_distance, get_cities
+from src.permissions import PermissionPreset
+from tools.maps_tools import get_cities, get_distance
 
 
 class MapsAgent(BaseA2AAgent):
@@ -13,7 +16,11 @@ class MapsAgent(BaseA2AAgent):
     MCP server for maps/distance functionality.
     """
 
-    def __init__(self, port: int = 9002):
+    def __init__(
+        self,
+        port: int = 9002,
+        permission_preset: PermissionPreset = PermissionPreset.FULL_ACCESS,
+    ):
         # Create SDK MCP server with maps tools
         # IMPORTANT: Server name must match the dictionary key used in base_a2a_agent.py
         # which is self.name.lower().replace(" ", "_") = "maps_agent"
@@ -46,10 +53,11 @@ class MapsAgent(BaseA2AAgent):
             description="Intelligent maps and distance analysis using SDK MCP tools",
             port=port,
             sdk_mcp_server=maps_sdk_server,
-            system_prompt=system_prompt
+            system_prompt=system_prompt,
+            permission_preset=permission_preset,
         )
 
-    def _get_skills(self) -> List[Dict[str, Any]]:
+    def _get_skills(self) -> list[dict[str, Any]]:
         """Define maps agent skills for A2A discovery."""
         return [
             {
@@ -76,7 +84,7 @@ class MapsAgent(BaseA2AAgent):
             }
         ]
 
-    def _get_allowed_tools(self) -> List[str]:
+    def _get_allowed_tools(self) -> list[str]:
         """Allow Maps SDK MCP tools."""
         # Tool naming: mcp__<server_key>__<tool_name>
         # Server key comes from dict key in base_a2a_agent.py = "maps_agent"
