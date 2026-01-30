@@ -850,7 +850,11 @@ class AgentDeployer:
         Raises:
             DeploymentError: If deployment fails
         """
-        logger.info(f"Deploying job: {job.job.name}")
+        # Generate unique run ID with timestamp for log separation
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        run_id = f"{job.job.name}-{timestamp}"
+
+        logger.info(f"Deploying job: {job.job.name} (run: {run_id})")
         logger.info(f"Deployment strategy: {job.deployment.strategy}")
         logger.info(f"Stages: {len(plan.stages)}")
 
@@ -875,7 +879,9 @@ class AgentDeployer:
                     # Parallel deployment within stage
                     tasks = []
                     for agent_id in stage:
-                        task = self._deploy_agent(job, agent_id, plan, global_env)
+                        task = self._deploy_agent(
+                            job, agent_id, plan, global_env, run_id
+                        )
                         tasks.append((agent_id, task))
 
                     # Wait for all in parallel
@@ -894,7 +900,7 @@ class AgentDeployer:
                     for agent_id in stage:
                         try:
                             agent, process = await self._deploy_agent(
-                                job, agent_id, plan, global_env
+                                job, agent_id, plan, global_env, run_id
                             )
                             deployed_agents[agent_id] = agent
                             processes[agent_id] = process
@@ -906,7 +912,7 @@ class AgentDeployer:
             logger.info(f"Deployed {len(deployed_agents)} agents successfully")
 
             return DeployedJob(
-                job_id=job.job.name,
+                job_id=run_id,
                 definition=job,
                 plan=plan,
                 agents=deployed_agents,
@@ -927,6 +933,7 @@ class AgentDeployer:
         agent_id: str,
         plan: DeploymentPlan,
         global_env: dict[str, str],
+        run_id: str,
     ) -> tuple[DeployedAgent, Any]:
         """Deploy a single agent.
 
@@ -935,6 +942,7 @@ class AgentDeployer:
             agent_id: Agent identifier
             plan: Deployment plan
             global_env: Global environment variables
+            run_id: Unique run identifier for log organization
 
         Returns:
             Tuple of (DeployedAgent, process handle)
@@ -957,12 +965,12 @@ class AgentDeployer:
 
         # Add job context to environment for logging correlation
         agent_env = dict(global_env)
-        agent_env["JOB_ID"] = job.job.name
+        agent_env["JOB_ID"] = run_id
         agent_env["AGENT_ID"] = agent_id
 
-        # Start agent with job_id for log organization
+        # Start agent with run_id for log organization
         process = await runner.start(
-            agent_config, connected_urls, agent_env, job_id=job.job.name
+            agent_config, connected_urls, agent_env, job_id=run_id
         )
 
         # Get agent URL
