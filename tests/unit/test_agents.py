@@ -311,7 +311,9 @@ class TestWeatherAgentMain:
 
                 main()
 
-                mock_agent_class.assert_called_with(port=8888)
+                # Check port is correct (permission_preset may also be passed)
+                call_kwargs = mock_agent_class.call_args.kwargs
+                assert call_kwargs["port"] == 8888
                 mock_agent.run.assert_called_once()
 
     def test_main_uses_default_port(self) -> None:
@@ -327,7 +329,9 @@ class TestWeatherAgentMain:
 
                 main()
 
-                mock_agent_class.assert_called_with(port=9001)
+                # Check port is correct (permission_preset may also be passed)
+                call_kwargs = mock_agent_class.call_args.kwargs
+                assert call_kwargs["port"] == 9001
 
 
 class TestMapsAgentMain:
@@ -344,7 +348,9 @@ class TestMapsAgentMain:
 
                 main()
 
-                mock_agent_class.assert_called_with(port=7777)
+                # Check port is correct (permission_preset may also be passed)
+                call_kwargs = mock_agent_class.call_args.kwargs
+                assert call_kwargs["port"] == 7777
 
     def test_main_uses_default_port(self) -> None:
         """Should use default port 9002 when not specified."""
@@ -357,7 +363,9 @@ class TestMapsAgentMain:
 
                 main()
 
-                mock_agent_class.assert_called_with(port=9002)
+                # Check port is correct (permission_preset may also be passed)
+                call_kwargs = mock_agent_class.call_args.kwargs
+                assert call_kwargs["port"] == 9002
 
 
 class TestControllerAgentMain:

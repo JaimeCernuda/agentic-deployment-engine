@@ -138,34 +138,23 @@ class BaseA2AAgent(ABC):
         fh = logging.FileHandler(log_file, mode="a", encoding="utf-8")
         fh.setLevel(logging.DEBUG)
 
-        # Console handler (use stdout, not stderr)
-        # Wrap stdout with UTF-8 encoding for Windows compatibility
-        if sys.platform == "win32":
-            # Windows console may not support UTF-8 by default
-            import io
-
-            utf8_stdout = io.TextIOWrapper(
-                sys.stdout.buffer, encoding="utf-8", errors="replace"
-            )
-            ch = logging.StreamHandler(utf8_stdout)
-        else:
-            ch = logging.StreamHandler(sys.stdout)
-        ch.setLevel(logging.INFO)
-
         # Detailed formatter for file logs
         file_formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
         )
-        # Simple formatter for console
-        console_formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-        )
-
         fh.setFormatter(file_formatter)
-        ch.setFormatter(console_formatter)
-
         self.logger.addHandler(fh)
-        self.logger.addHandler(ch)
+
+        # Console handler - skip in test environments (pytest captures stdout)
+        # which causes "I/O operation on closed file" errors during cleanup
+        if "pytest" not in sys.modules:
+            ch = logging.StreamHandler(sys.stdout)
+            ch.setLevel(logging.INFO)
+            console_formatter = logging.Formatter(
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            )
+            ch.setFormatter(console_formatter)
+            self.logger.addHandler(ch)
 
         self.logger.info(f"Initializing {name} on port {port}")
         self.logger.info(f"Log file: {log_file}")

@@ -1001,4 +1001,10 @@ class TestRunMethod:
         with patch("src.agents.base.uvicorn.run") as mock_uvicorn:
             agent.run()
 
-            mock_uvicorn.assert_called_once_with(agent.app, host="0.0.0.0", port=9001)
+            # Check uvicorn was called with correct host/port (log_config also passed)
+            mock_uvicorn.assert_called_once()
+            call_kwargs = mock_uvicorn.call_args
+            assert call_kwargs[0][0] == agent.app
+            assert call_kwargs[1]["host"] == "0.0.0.0"
+            assert call_kwargs[1]["port"] == 9001
+            assert "log_config" in call_kwargs[1]
