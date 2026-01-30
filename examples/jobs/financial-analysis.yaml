@@ -1,0 +1,76 @@
+# Financial Analysis Workflow
+# Pattern: Hub-and-Spoke with specialized financial agents
+# Use case: Comprehensive stock analysis combining data and calculations
+
+job:
+  name: financial-analysis
+  version: 1.0.0
+  description: Multi-agent financial analysis with stock data and calculations
+  tags:
+    - finance
+    - stocks
+    - analysis
+    - multi-agent
+
+agents:
+  # Stock data agent
+  - id: stock
+    type: StockAgent
+    module: examples.agents.stock_agent
+    config:
+      port: 9003
+      name: Stock Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Financial calculator agent
+  - id: calculator
+    type: CalculatorAgent
+    module: examples.agents.calculator_agent
+    config:
+      port: 9004
+      name: Calculator Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Coordinator agent
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+# Hub-and-spoke topology
+# Controller coordinates stock and calculator agents
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - stock
+    - calculator
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 45
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+# Workflow execution
+execution:
+  entry_point: controller
+  auto_start: true
