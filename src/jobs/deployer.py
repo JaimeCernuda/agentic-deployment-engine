@@ -432,11 +432,15 @@ class SSHRunner(AgentRunner):
         version_output = stdout.read().decode().strip()
         logger.debug(f"Remote Python version: {version_output}")
 
-        # Check for uv
+        # Check for uv - use command -v which properly short-circuits
+        # Fall back to checking common installation paths
         stdin, stdout, stderr = ssh.exec_command(
-            "which uv || test -x ~/.local/bin/uv && echo ~/.local/bin/uv || test -x ~/.cargo/bin/uv && echo ~/.cargo/bin/uv"
+            "command -v uv 2>/dev/null || "
+            "(test -x ~/.local/bin/uv && echo ~/.local/bin/uv) || "
+            "(test -x ~/.cargo/bin/uv && echo ~/.cargo/bin/uv)"
         )
-        uv_path = stdout.read().decode().strip()
+        # Take only first line in case multiple paths are returned
+        uv_path = stdout.read().decode().strip().split("\n")[0]
         uv_ok = bool(uv_path)
 
         if not uv_ok:
@@ -548,9 +552,16 @@ class SSHRunner(AgentRunner):
             # Use uv run python for proper virtualenv handling
             python = f"{shlex.quote(uv_path)} run python"
 
+            # Expand ~ to absolute path on remote host (required for shlex.quote to work)
+            if workdir.startswith("~"):
+                stdin, stdout, stderr = ssh.exec_command("echo $HOME")
+                home = stdout.read().decode().strip()
+                workdir = workdir.replace("~", home, 1)
+                logger.debug(f"Expanded workdir to absolute path: {workdir}")
+
         # Ensure working directory exists (except for localhost project dir)
         if host != "localhost":
-            stdin, stdout, stderr = ssh.exec_command(f"mkdir -p {workdir}")
+            stdin, stdout, stderr = ssh.exec_command(f"mkdir -p {shlex.quote(workdir)}")
             stdout.channel.recv_exit_status()  # Wait for command
 
             # Transfer agent code to remote host
@@ -645,11 +656,17 @@ class SSHRunner(AgentRunner):
                     await self._sync_directory(sftp, local_dir, remote_path)
                     logger.debug(f"Synced {dir_name}/ to {remote_path}")
 
-            # Copy pyproject.toml for dependency installation
+            # Copy pyproject.toml and uv.lock for dependency installation
             pyproject_path = self.project_root / "pyproject.toml"
             if pyproject_path.exists():
                 sftp.put(str(pyproject_path), f"{remote_dir}/pyproject.toml")
                 logger.debug("Synced pyproject.toml")
+
+            # Also sync uv.lock if it exists (ensures reproducible installs)
+            uv_lock_path = self.project_root / "uv.lock"
+            if uv_lock_path.exists():
+                sftp.put(str(uv_lock_path), f"{remote_dir}/uv.lock")
+                logger.debug("Synced uv.lock")
 
             logger.info(f"Code transferred to {remote_dir}")
 
@@ -706,8 +723,8 @@ class SSHRunner(AgentRunner):
         for item in local_dir.iterdir():
             remote_path = f"{remote_dir}/{item.name}"
 
-            # Skip __pycache__ and hidden files
-            if item.name.startswith("__") or item.name.startswith("."):
+            # Skip __pycache__ (but NOT __init__.py) and hidden files
+            if item.name == "__pycache__" or item.name.startswith("."):
                 continue
 
             if item.is_file():
