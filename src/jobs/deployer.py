@@ -95,9 +95,7 @@ class AgentRunner(ABC):
             agent_id: Agent identifier
             host: Optional host for remote runners
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} doesn't support stop_by_pid"
-        )
+        raise NotImplementedError(f"{type(self).__name__} doesn't support stop_by_pid")
 
 
 # ============================================================================
@@ -337,7 +335,9 @@ class SSHRunner(AgentRunner):
         config_key = host_config.get("identityfile", [None])[0]
 
         # Reuse connection if exists
-        connection_key = f"{actual_hostname}:{agent.deployment.port or config_port or 22}"
+        connection_key = (
+            f"{actual_hostname}:{agent.deployment.port or config_port or 22}"
+        )
         if connection_key in self.connections:
             return self.connections[connection_key]
 
@@ -397,6 +397,97 @@ class SSHRunner(AgentRunner):
         except Exception as e:
             raise DeploymentError(f"SSH connection failed to {user}@{host}: {e}") from e
 
+    def _check_remote_prerequisites(
+        self, ssh: paramiko.SSHClient, host: str
+    ) -> tuple[bool, bool, str]:
+        """Check if Python and uv are installed on remote host.
+
+        Args:
+            ssh: SSH client
+            host: Host name for error messages
+
+        Returns:
+            Tuple of (python_ok, uv_ok, uv_path)
+
+        Raises:
+            DeploymentError: If prerequisites are missing
+        """
+        # Check for Python 3
+        stdin, stdout, stderr = ssh.exec_command("which python3 || which python")
+        python_path = stdout.read().decode().strip()
+        python_ok = bool(python_path)
+
+        if not python_ok:
+            raise DeploymentError(
+                f"Python not found on remote host '{host}'.\n"
+                f"Please install Python 3.11+ on the remote host:\n"
+                f"  ssh {host} 'sudo apt install python3'  # Debian/Ubuntu\n"
+                f"  ssh {host} 'sudo dnf install python3'  # Fedora/RHEL"
+            )
+
+        # Check Python version
+        stdin, stdout, stderr = ssh.exec_command(
+            "python3 --version 2>&1 || python --version 2>&1"
+        )
+        version_output = stdout.read().decode().strip()
+        logger.debug(f"Remote Python version: {version_output}")
+
+        # Check for uv
+        stdin, stdout, stderr = ssh.exec_command(
+            "which uv || test -x ~/.local/bin/uv && echo ~/.local/bin/uv || test -x ~/.cargo/bin/uv && echo ~/.cargo/bin/uv"
+        )
+        uv_path = stdout.read().decode().strip()
+        uv_ok = bool(uv_path)
+
+        if not uv_ok:
+            raise DeploymentError(
+                f"uv not found on remote host '{host}'.\n"
+                f"Please install uv on the remote host:\n"
+                f"  ssh {host} 'curl -LsSf https://astral.sh/uv/install.sh | sh'\n"
+                f"Or install via pip:\n"
+                f"  ssh {host} 'pip install uv'"
+            )
+
+        logger.info(
+            f"Remote prerequisites OK: Python at {python_path}, uv at {uv_path}"
+        )
+        return python_ok, uv_ok, uv_path
+
+    async def _install_remote_dependencies(
+        self, ssh: paramiko.SSHClient, workdir: str, uv_path: str, agent_id: str
+    ) -> None:
+        """Install dependencies on remote host using uv.
+
+        Args:
+            ssh: SSH client
+            workdir: Remote working directory
+            uv_path: Path to uv binary
+            agent_id: Agent ID for logging
+        """
+        logger.info(f"Installing dependencies on remote for {agent_id}...")
+
+        # Expand workdir if it starts with ~
+        if workdir.startswith("~"):
+            stdin, stdout, stderr = ssh.exec_command("echo $HOME")
+            home = stdout.read().decode().strip()
+            workdir = workdir.replace("~", home, 1)
+
+        # Run uv sync in the workdir
+        cmd = f"cd {shlex.quote(workdir)} && {shlex.quote(uv_path)} sync 2>&1"
+        logger.debug(f"Running: {cmd}")
+
+        stdin, stdout, stderr = ssh.exec_command(cmd)
+        exit_status = stdout.channel.recv_exit_status()
+        output = stdout.read().decode()
+
+        if exit_status != 0:
+            raise DeploymentError(
+                f"Failed to install dependencies on remote for {agent_id}:\n{output}"
+            )
+
+        logger.info(f"Dependencies installed successfully for {agent_id}")
+        logger.debug(f"uv sync output: {output[:500]}")
+
     async def start(
         self,
         agent: AgentConfig,
@@ -416,6 +507,12 @@ class SSHRunner(AgentRunner):
             Remote process reference
         """
         ssh = self._get_ssh_client(agent)
+        host = agent.deployment.host or "unknown"
+
+        # Check prerequisites on remote (skip for localhost SSH)
+        uv_path = "uv"
+        if host != "localhost":
+            _, _, uv_path = self._check_remote_prerequisites(ssh, host)
 
         # Build environment variables
         env_vars = env.copy()
@@ -439,27 +536,29 @@ class SSHRunner(AgentRunner):
 
         # Get remote configuration
         # Special case: if deploying to localhost, use project directory with uv
-        if agent.deployment.host == "localhost":
+        if host == "localhost":
             import shutil
 
             workdir = os.getcwd()  # Use current project directory
             # Find uv in PATH
-            uv_path = shutil.which("uv") or os.path.expanduser("~/.local/bin/uv")
-            python = (
-                f"{shlex.quote(uv_path)} run python"  # Use uv with full path, quoted
-            )
+            local_uv_path = shutil.which("uv") or os.path.expanduser("~/.local/bin/uv")
+            python = f"{shlex.quote(local_uv_path)} run python"  # Use uv with full path, quoted
         else:
             workdir = agent.deployment.workdir or f"~/agents/{agent.id}"
-            python = agent.deployment.python or "python3"
+            # Use uv run python for proper virtualenv handling
+            python = f"{shlex.quote(uv_path)} run python"
 
         # Ensure working directory exists (except for localhost project dir)
-        if agent.deployment.host != "localhost":
+        if host != "localhost":
             stdin, stdout, stderr = ssh.exec_command(f"mkdir -p {workdir}")
             stdout.channel.recv_exit_status()  # Wait for command
 
             # Transfer agent code to remote host
             logger.info(f"Transferring code to {workdir}...")
             await self._transfer_code(ssh, agent, workdir)
+
+            # Install dependencies using uv
+            await self._install_remote_dependencies(ssh, workdir, uv_path, agent.id)
         else:
             logger.debug(f"Using project directory: {workdir}")
 
