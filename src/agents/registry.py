@@ -324,8 +324,18 @@ class AgentRegistry:
         return len(self._cache)
 
     async def cleanup(self) -> None:
-        """Cleanup resources."""
+        """Cleanup resources.
+
+        Handles graceful shutdown even if the event loop is closing.
+        """
         if self._client:
-            await self._client.aclose()
+            try:
+                await self._client.aclose()
+            except RuntimeError as e:
+                # Event loop may already be closed during shutdown
+                if "Event loop is closed" in str(e):
+                    logger.debug("Event loop closed, skipping async cleanup")
+                else:
+                    raise
             self._client = None
         self._cache.clear()

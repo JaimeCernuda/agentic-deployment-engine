@@ -17,34 +17,25 @@ def start_agents() -> None:
 
     logger.info("Starting Clean MCP + A2A System with SDK Integration")
 
-    processes: list[tuple[str, subprocess.Popen]] = []
+    processes: list[tuple[str, subprocess.Popen[bytes]]] = []
 
     try:
         # Start Weather Agent
+        # Note: stdout/stderr left as default (inherited) so logs are visible
         logger.info("Starting Weather Agent (port 9001)...")
-        weather = subprocess.Popen(
-            ["uv", "run", "weather-agent"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        weather = subprocess.Popen(["uv", "run", "weather-agent"])
         processes.append(("Weather Agent", weather))
         time.sleep(3)
 
         # Start Maps Agent
         logger.info("Starting Maps Agent (port 9002)...")
-        maps = subprocess.Popen(
-            ["uv", "run", "maps-agent"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        )
+        maps = subprocess.Popen(["uv", "run", "maps-agent"])
         processes.append(("Maps Agent", maps))
         time.sleep(3)
 
         # Start Controller Agent
         logger.info("Starting Controller Agent (port 9000)...")
-        controller = subprocess.Popen(
-            ["uv", "run", "controller-agent"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-        )
+        controller = subprocess.Popen(["uv", "run", "controller-agent"])
         processes.append(("Controller Agent", controller))
         time.sleep(2)
 
