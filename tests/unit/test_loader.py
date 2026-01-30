@@ -10,7 +10,6 @@ Tests cover:
 - validate_only() method
 """
 
-import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -820,7 +819,7 @@ class TestDeploymentConfigValidation:
             write_yaml(path, data)
 
             with patch("src.jobs.loader.logger") as mock_logger:
-                job = loader.load(path)
+                loader.load(path)
                 # Should have logged a warning about password auth
                 mock_logger.warning.assert_called()
                 assert "password" in str(mock_logger.warning.call_args).lower()

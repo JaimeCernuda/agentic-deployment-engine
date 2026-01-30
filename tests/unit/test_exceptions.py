@@ -269,5 +269,5 @@ class TestExceptionRaising:
 
     def test_catch_as_exception(self) -> None:
         """Can catch as generic Exception."""
-        with pytest.raises(Exception):
+        with pytest.raises(SecurityError):
             raise SecurityError("Test")

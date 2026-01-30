@@ -8,8 +8,6 @@ Tests cover:
 - DAG topological sort (_dag_to_stages)
 """
 
-import pytest
-
 from src.jobs.models import (
     AgentConfig,
     AgentDeploymentConfig,

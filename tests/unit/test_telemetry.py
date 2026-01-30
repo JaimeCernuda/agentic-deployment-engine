@@ -12,8 +12,6 @@ Tests cover:
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from src.observability import telemetry
 
 
@@ -116,7 +114,7 @@ class TestExtractContext:
         """Returns value when telemetry is enabled."""
         telemetry._initialized = True
 
-        result = telemetry.extract_context({"traceparent": "00-..."})
+        telemetry.extract_context({"traceparent": "00-..."})
 
         # May return None or context depending on OTel being installed
         # Just verify it doesn't crash
