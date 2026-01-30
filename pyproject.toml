@@ -23,6 +23,7 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.12.0",
+    "pytest-timeout>=2.3.0",
     "ruff>=0.2.0",
     "mypy>=1.8.0",
     "pyright>=1.1.350",
@@ -68,6 +69,8 @@ packages = ["."]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+# Timeout per test (in seconds) - prevents hanging CI
+timeout = 30
 # Test directories: tests/unit/, tests/integration/, tests/usability/
 # Default runs unit tests only (fast, no external deps)
 # Run integration: uv run pytest tests/integration/ -v -m integration
