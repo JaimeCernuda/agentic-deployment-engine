@@ -36,6 +36,7 @@ class JobState(BaseModel):
     stop_time: str | None = None
     agents: dict[str, AgentState] = {}
     topology_type: str | None = None
+    entry_point: str | None = None  # Default agent for queries
     error: str | None = None
 
 

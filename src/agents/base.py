@@ -518,7 +518,41 @@ Always be concise and professional in your responses."""
             self.logger.info("Discovering agents before startup...")
             asyncio.run(self._discover_agents())
 
-        uvicorn.run(self.app, host="0.0.0.0", port=self.port)
+        # Configure uvicorn logging to use our logger (stdout, not stderr)
+        log_config = {
+            "version": 1,
+            "disable_existing_loggers": False,
+            "formatters": {
+                "default": {
+                    "format": "%(asctime)s - uvicorn - %(levelname)s - %(message)s",
+                },
+            },
+            "handlers": {
+                "default": {
+                    "formatter": "default",
+                    "class": "logging.StreamHandler",
+                    "stream": "ext://sys.stdout",
+                },
+            },
+            "loggers": {
+                "uvicorn": {
+                    "handlers": ["default"],
+                    "level": "INFO",
+                    "propagate": False,
+                },
+                "uvicorn.error": {
+                    "handlers": ["default"],
+                    "level": "INFO",
+                    "propagate": False,
+                },
+                "uvicorn.access": {
+                    "handlers": ["default"],
+                    "level": "WARNING",
+                    "propagate": False,
+                },
+            },
+        }
+        uvicorn.run(self.app, host="0.0.0.0", port=self.port, log_config=log_config)
 
     def _signal_handler(self, signum: int, frame) -> None:
         """Handle shutdown signals gracefully.

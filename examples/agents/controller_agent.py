@@ -127,7 +127,9 @@ def main():
         ]
 
     agent = ControllerAgent(
-        port=port, connected_agents=connected_agents, permission_preset=permission_preset
+        port=port,
+        connected_agents=connected_agents,
+        permission_preset=permission_preset,
     )
     print(f"Starting Controller Agent on port {port}...")
     print(f"Permission preset: {permission_preset.value}")

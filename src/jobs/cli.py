@@ -195,12 +195,20 @@ def start(
 
             # 4. Save to registry
             registry = get_registry()
+            # Determine entry point (from execution config or topology hub)
+            entry_point = None
+            if job.execution and job.execution.entry_point:
+                entry_point = job.execution.entry_point
+            elif job.topology.type == "hub-spoke" and job.topology.hub:
+                entry_point = job.topology.hub
+
             job_state = JobState(
                 job_id=deployed_job.job_id,
                 job_file=str(job_file.absolute()),
                 status="running",
                 start_time=deployed_job.start_time,
                 topology_type=job.topology.type,
+                entry_point=entry_point,
                 agents={
                     agent_id: AgentState(
                         agent_id=agent_id,
@@ -393,6 +401,94 @@ def stop(
         console.print(
             f"\n[yellow]Partially stopped ({stopped} ok, {failed} failed)[/yellow]"
         )
+
+
+# ============================================================================
+# Query Command
+# ============================================================================
+
+
+@app.command()
+def query(
+    job_name: str = typer.Argument(..., help="Job name or ID"),
+    message: str = typer.Argument(..., help="Query message to send"),
+    agent: str | None = typer.Option(
+        None, "--agent", "-a", help="Specific agent to query (default: entry point)"
+    ),
+    timeout: int = typer.Option(60, "--timeout", "-t", help="Timeout in seconds"),
+    raw: bool = typer.Option(False, "--raw", "-r", help="Output raw JSON response"),
+):
+    """Send a query to a running job."""
+    registry = get_registry()
+    job_state = registry.get_job(job_name)
+
+    if not job_state:
+        console.print(f"[red][FAIL] Job not found: {job_name}[/red]")
+        raise typer.Exit(code=1) from None
+
+    if job_state.status != "running":
+        console.print(
+            f"[red][FAIL] Job is not running (status: {job_state.status})[/red]"
+        )
+        raise typer.Exit(code=1) from None
+
+    # Determine which agent to query
+    if agent:
+        if agent not in job_state.agents:
+            console.print(f"[red][FAIL] Agent not found: {agent}[/red]")
+            console.print(
+                f"[dim]Available agents: {', '.join(job_state.agents.keys())}[/dim]"
+            )
+            raise typer.Exit(code=1) from None
+        target_agent = job_state.agents[agent]
+    else:
+        # Use entry point or first agent
+        entry_point = job_state.entry_point
+        if entry_point and entry_point in job_state.agents:
+            target_agent = job_state.agents[entry_point]
+            agent = entry_point
+        else:
+            # Fall back to first agent
+            agent = next(iter(job_state.agents.keys()))
+            target_agent = job_state.agents[agent]
+
+    if not target_agent.url:
+        console.print(f"[red][FAIL] Agent {agent} has no URL[/red]")
+        raise typer.Exit(code=1) from None
+
+    # Send query
+    if not raw:
+        console.print(f"[dim]Querying {agent} at {target_agent.url}...[/dim]")
+
+    async def send_query():
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                f"{target_agent.url}/query",
+                json={"query": message},
+            )
+            response.raise_for_status()
+            return response.json()
+
+    try:
+        result = asyncio.run(send_query())
+
+        if raw:
+            console.print(json.dumps(result, indent=2))
+        else:
+            response_text = result.get("response", str(result))
+            console.print(
+                Panel(response_text, title=f"[bold]{agent}[/bold]", expand=False)
+            )
+
+    except httpx.TimeoutException:
+        console.print(f"[red][FAIL] Request timed out after {timeout}s[/red]")
+        raise typer.Exit(code=1) from None
+    except httpx.HTTPStatusError as e:
+        console.print(f"[red][FAIL] HTTP error: {e.response.status_code}[/red]")
+        raise typer.Exit(code=1) from None
+    except Exception as e:
+        console.print(f"[red][FAIL] Query failed: {e}[/red]")
+        raise typer.Exit(code=1) from None
 
 
 # ============================================================================

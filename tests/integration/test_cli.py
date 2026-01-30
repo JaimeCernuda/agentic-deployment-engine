@@ -553,6 +553,153 @@ class TestStopCommand:
 
 
 # ============================================================================
+# Query Command Tests
+# ============================================================================
+
+
+class TestQueryCommand:
+    """Tests for the query command."""
+
+    def test_query_nonexistent_job_fails(self) -> None:
+        """Query for nonexistent job should fail."""
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = None
+            mock_get_registry.return_value = mock_registry
+
+            result = runner.invoke(app, ["query", "nonexistent-job", "Hello"])
+
+            assert result.exit_code == 1
+            assert "not found" in result.stdout.lower()
+
+    def test_query_stopped_job_fails(self) -> None:
+        """Query for stopped job should fail."""
+        stopped_job = JobState(
+            job_id="stopped-job",
+            job_file="/path/to/job.yaml",
+            status="stopped",
+            start_time=datetime.now().isoformat(),
+            agents={},
+        )
+
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = stopped_job
+            mock_get_registry.return_value = mock_registry
+
+            result = runner.invoke(app, ["query", "stopped-job", "Hello"])
+
+            assert result.exit_code == 1
+            assert "not running" in result.stdout.lower()
+
+    def test_query_invalid_agent_fails(self, mock_job_state: JobState) -> None:
+        """Query for invalid agent should fail."""
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = mock_job_state
+            mock_get_registry.return_value = mock_registry
+
+            result = runner.invoke(
+                app, ["query", "test-job", "Hello", "--agent", "nonexistent"]
+            )
+
+            assert result.exit_code == 1
+            assert "not found" in result.stdout.lower()
+
+    def test_query_success_shows_response(self, mock_job_state: JobState) -> None:
+        """Successful query should show response."""
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = mock_job_state
+            mock_get_registry.return_value = mock_registry
+
+            with patch("src.jobs.cli.asyncio.run") as mock_run:
+                mock_run.return_value = {"response": "Hello, I'm an agent!"}
+
+                result = runner.invoke(app, ["query", "test-job", "Hello"])
+
+            assert result.exit_code == 0
+            assert "Hello, I'm an agent!" in result.stdout
+
+    def test_query_raw_output(self, mock_job_state: JobState) -> None:
+        """Query with --raw should output JSON."""
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = mock_job_state
+            mock_get_registry.return_value = mock_registry
+
+            with patch("src.jobs.cli.asyncio.run") as mock_run:
+                mock_run.return_value = {"response": "Test response"}
+
+                result = runner.invoke(app, ["query", "test-job", "Hello", "--raw"])
+
+            assert result.exit_code == 0
+            assert '"response"' in result.stdout
+
+    def test_query_uses_entry_point(self) -> None:
+        """Query should use entry_point agent by default."""
+        job_with_entry = JobState(
+            job_id="test-job",
+            job_file="/path/to/job.yaml",
+            status="running",
+            start_time=datetime.now().isoformat(),
+            entry_point="controller",
+            agents={
+                "controller": AgentState(
+                    agent_id="controller",
+                    url="http://localhost:9000",
+                    process_id=1234,
+                    status="running",
+                ),
+                "worker": AgentState(
+                    agent_id="worker",
+                    url="http://localhost:9001",
+                    process_id=5678,
+                    status="running",
+                ),
+            },
+        )
+
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = job_with_entry
+            mock_get_registry.return_value = mock_registry
+
+            with patch("src.jobs.cli.asyncio.run") as mock_run:
+                mock_run.return_value = {"response": "From controller"}
+
+                result = runner.invoke(app, ["query", "test-job", "Hello"])
+
+            assert result.exit_code == 0
+            # Should have queried the controller (entry point)
+            assert "controller" in result.stdout.lower()
+
+    def test_query_timeout_fails(self, mock_job_state: JobState) -> None:
+        """Query timeout should fail gracefully."""
+        import httpx
+
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = mock_job_state
+            mock_get_registry.return_value = mock_registry
+
+            with patch("src.jobs.cli.asyncio.run") as mock_run:
+                mock_run.side_effect = httpx.TimeoutException("Timeout")
+
+                result = runner.invoke(app, ["query", "test-job", "Hello"])
+
+            assert result.exit_code == 1
+            assert "timed out" in result.stdout.lower()
+
+    def test_query_help_works(self) -> None:
+        """Query --help should work."""
+        result = runner.invoke(app, ["query", "--help"])
+
+        assert result.exit_code == 0
+        assert "query" in result.stdout.lower()
+
+
+# ============================================================================
 # List Command Tests
 # ============================================================================
 
