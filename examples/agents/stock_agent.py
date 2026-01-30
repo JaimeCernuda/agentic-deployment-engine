@@ -128,8 +128,18 @@ def main():
     """Run the Stock Agent."""
     port = int(os.getenv("AGENT_PORT", "9003"))
 
-    agent = StockAgent(port=port)
+    # Read permission preset from environment
+    preset_name = os.getenv("AGENT_PERMISSION_PRESET", "full_access").lower()
+    preset_map = {
+        "full_access": PermissionPreset.FULL_ACCESS,
+        "read_only": PermissionPreset.READ_ONLY,
+        "communication_only": PermissionPreset.COMMUNICATION_ONLY,
+    }
+    permission_preset = preset_map.get(preset_name, PermissionPreset.FULL_ACCESS)
+
+    agent = StockAgent(port=port, permission_preset=permission_preset)
     print(f"Starting Stock Agent on port {port}...")
+    print(f"Permission preset: {permission_preset.value}")
     print("Using SDK MCP server with stock tools")
     agent.run()
 

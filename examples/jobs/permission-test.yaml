@@ -1,0 +1,63 @@
+# Permission Testing Workflow
+# Tests different permission presets on agents
+
+job:
+  name: permission-test
+  version: 1.0.0
+  description: Test permission presets - read_only weather, communication_only controller
+  tags:
+    - testing
+    - permissions
+    - security
+
+agents:
+  # Weather agent with READ_ONLY permissions
+  # Should only be able to use read tools, not write/execute
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+      permission_preset: read_only
+    deployment:
+      target: localhost
+
+  # Maps agent with FULL_ACCESS (default)
+  - id: maps
+    type: MapsAgent
+    module: examples.agents.maps_agent
+    config:
+      port: 9002
+      permission_preset: full_access
+    deployment:
+      target: localhost
+
+  # Controller with COMMUNICATION_ONLY
+  # Should only be able to query/discover agents
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      permission_preset: communication_only
+    deployment:
+      target: localhost
+
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+execution:
+  entry_point: controller
+  auto_start: true

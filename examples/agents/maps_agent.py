@@ -97,8 +97,18 @@ def main():
     # Read configuration from environment variables
     port = int(os.getenv("AGENT_PORT", "9002"))
 
-    agent = MapsAgent(port=port)
+    # Read permission preset from environment
+    preset_name = os.getenv("AGENT_PERMISSION_PRESET", "full_access").lower()
+    preset_map = {
+        "full_access": PermissionPreset.FULL_ACCESS,
+        "read_only": PermissionPreset.READ_ONLY,
+        "communication_only": PermissionPreset.COMMUNICATION_ONLY,
+    }
+    permission_preset = preset_map.get(preset_name, PermissionPreset.FULL_ACCESS)
+
+    agent = MapsAgent(port=port, permission_preset=permission_preset)
     print(f"Starting Maps Agent on port {port}...")
+    print(f"Permission preset: {permission_preset.value}")
     print("Using SDK MCP server with maps tools")
     agent.run()
 
