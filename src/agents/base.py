@@ -7,6 +7,7 @@ Provides A2A capabilities with clean inheritance and dynamic agent connections.
 import asyncio
 import atexit
 import logging
+import os
 import signal
 import sys
 from abc import ABC, abstractmethod
@@ -115,10 +116,17 @@ class BaseA2AAgent(ABC):
         self._active_system_prompt: str = self._base_system_prompt
         self._options_lock = asyncio.Lock()  # Protects claude_options updates
 
-        # Setup logging in local logs directory
-        log_dir = Path(__file__).parent / "logs"
-        log_dir.mkdir(exist_ok=True)
-        log_file = log_dir / f"{name.lower().replace(' ', '_')}.log"
+        # Setup logging - use job-based directory if JOB_ID is set, otherwise cwd/logs
+        job_id = os.environ.get("JOB_ID")
+        agent_id = os.environ.get("AGENT_ID", name.lower().replace(" ", "_"))
+        if job_id:
+            # Job deployment: logs go to logs/jobs/<job_id>/
+            log_dir = Path.cwd() / "logs" / "jobs" / job_id
+        else:
+            # Standalone run: logs go to logs/agents/
+            log_dir = Path.cwd() / "logs" / "agents"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"{agent_id}.log"
 
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)

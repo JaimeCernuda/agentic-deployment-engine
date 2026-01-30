@@ -42,7 +42,11 @@ class AgentRunner(ABC):
 
     @abstractmethod
     async def start(
-        self, agent: AgentConfig, connected_urls: list[str], env: dict[str, str]
+        self,
+        agent: AgentConfig,
+        connected_urls: list[str],
+        env: dict[str, str],
+        job_id: str | None = None,
     ) -> Any:
         """Start an agent.
 
@@ -50,6 +54,7 @@ class AgentRunner(ABC):
             agent: Agent configuration
             connected_urls: URLs of connected agents
             env: Environment variables
+            job_id: Job identifier for log organization
 
         Returns:
             Process/container reference
@@ -78,6 +83,22 @@ class AgentRunner(ABC):
         """
         pass
 
+    async def stop_by_pid(
+        self, pid: int, agent_id: str, host: str | None = None
+    ) -> None:
+        """Stop agent by process ID.
+
+        Optional method for runners that support stopping by PID.
+
+        Args:
+            pid: Process ID
+            agent_id: Agent identifier
+            host: Optional host for remote runners
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} doesn't support stop_by_pid"
+        )
+
 
 # ============================================================================
 # Local Runner (subprocess)
@@ -98,7 +119,11 @@ class LocalRunner(AgentRunner):
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     async def start(
-        self, agent: AgentConfig, connected_urls: list[str], env: dict[str, str]
+        self,
+        agent: AgentConfig,
+        connected_urls: list[str],
+        env: dict[str, str],
+        job_id: str | None = None,
     ) -> subprocess.Popen:
         """Start agent locally via python -m.
 
@@ -106,6 +131,7 @@ class LocalRunner(AgentRunner):
             agent: Agent configuration
             connected_urls: URLs of connected agents
             env: Environment variables
+            job_id: Job identifier for log organization
 
         Returns:
             Process handle
@@ -129,9 +155,15 @@ class LocalRunner(AgentRunner):
         if agent.deployment.environment:
             process_env.update(agent.deployment.environment)
 
-        # Setup log files
-        stdout_log = self.log_dir / f"{agent.id}.stdout.log"
-        stderr_log = self.log_dir / f"{agent.id}.stderr.log"
+        # Setup log files - organize by job if available
+        if job_id:
+            job_log_dir = self.log_dir / job_id
+            job_log_dir.mkdir(parents=True, exist_ok=True)
+            stdout_log = job_log_dir / f"{agent.id}.stdout.log"
+            stderr_log = job_log_dir / f"{agent.id}.stderr.log"
+        else:
+            stdout_log = self.log_dir / f"{agent.id}.stdout.log"
+            stderr_log = self.log_dir / f"{agent.id}.stderr.log"
 
         stdout_file = open(stdout_log, "w")
         stderr_file = open(stderr_log, "w")
@@ -194,6 +226,46 @@ class LocalRunner(AgentRunner):
             return "running"
         else:
             return "stopped"
+
+    async def stop_by_pid(
+        self, pid: int, agent_id: str, host: str | None = None
+    ) -> None:
+        """Stop agent by process ID.
+
+        Args:
+            pid: Process ID
+            agent_id: Agent identifier
+            host: Ignored for local runner
+        """
+        try:
+            if sys.platform == "win32":
+                # Windows: use taskkill
+                result = subprocess.run(
+                    ["taskkill", "/F", "/PID", str(pid)],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode != 0 and "not found" not in result.stderr.lower():
+                    logger.warning(f"taskkill failed for {agent_id}: {result.stderr}")
+            else:
+                # Unix: use kill signals
+                import signal as sig
+
+                try:
+                    os.kill(pid, sig.SIGTERM)
+                    # Wait a bit for graceful shutdown
+                    await asyncio.sleep(2)
+                    # Check if still running and force kill
+                    try:
+                        os.kill(pid, 0)  # Check if process exists
+                        os.kill(pid, sig.SIGKILL)
+                    except ProcessLookupError:
+                        pass  # Already dead
+                except ProcessLookupError:
+                    pass  # Process already gone
+            logger.info(f"Stopped agent {agent_id} (PID {pid})")
+        except Exception as e:
+            logger.warning(f"Error stopping agent {agent_id} by PID {pid}: {e}")
 
 
 # ============================================================================
@@ -309,7 +381,11 @@ class SSHRunner(AgentRunner):
             raise DeploymentError(f"SSH connection failed to {user}@{host}: {e}") from e
 
     async def start(
-        self, agent: AgentConfig, connected_urls: list[str], env: dict[str, str]
+        self,
+        agent: AgentConfig,
+        connected_urls: list[str],
+        env: dict[str, str],
+        job_id: str | None = None,
     ) -> RemoteProcess:
         """Start agent on remote host via SSH.
 
@@ -317,6 +393,7 @@ class SSHRunner(AgentRunner):
             agent: Agent configuration
             connected_urls: URLs of connected agents
             env: Environment variables
+            job_id: Job identifier for log organization (unused for SSH)
 
         Returns:
             Remote process reference
@@ -528,6 +605,53 @@ class SSHRunner(AgentRunner):
         else:
             return "stopped"
 
+    async def stop_by_pid(
+        self, pid: int, agent_id: str, host: str | None = None
+    ) -> None:
+        """Stop remote agent by process ID.
+
+        Args:
+            pid: Process ID
+            agent_id: Agent identifier
+            host: SSH host (required for remote stop)
+        """
+        if not host:
+            logger.warning(
+                f"Cannot stop remote agent {agent_id} - no host info available"
+            )
+            return
+
+        try:
+            # Get existing connection if available, or create minimal one
+            connection_key = f"{host}:22"
+            if connection_key in self.connections:
+                ssh = self.connections[connection_key]
+            else:
+                # Create minimal connection for cleanup
+                ssh = paramiko.SSHClient()
+                ssh.load_system_host_keys()
+                ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+                ssh.connect(host, username=getpass.getuser())
+                self.connections[connection_key] = ssh
+
+            # Send SIGTERM
+            stdin, stdout, stderr = ssh.exec_command(f"kill {pid}")
+            stdout.channel.recv_exit_status()
+
+            # Wait for graceful shutdown
+            await asyncio.sleep(2)
+
+            # Check if still running and force kill
+            stdin, stdout, stderr = ssh.exec_command(f"kill -0 {pid} 2>/dev/null")
+            if stdout.channel.recv_exit_status() == 0:
+                # Still running, force kill
+                stdin, stdout, stderr = ssh.exec_command(f"kill -9 {pid}")
+                stdout.channel.recv_exit_status()
+
+            logger.info(f"Stopped remote agent {agent_id} (PID {pid}) on {host}")
+        except Exception as e:
+            logger.warning(f"Error stopping remote agent {agent_id} by PID: {e}")
+
     def close_all(self):
         """Close all SSH connections."""
         for ssh in self.connections.values():
@@ -677,8 +801,15 @@ class AgentDeployer:
         # Get connected agent URLs
         connected_urls = plan.connections.get(agent_id, [])
 
-        # Start agent
-        process = await runner.start(agent_config, connected_urls, global_env)
+        # Add job context to environment for logging correlation
+        agent_env = dict(global_env)
+        agent_env["JOB_ID"] = job.job.name
+        agent_env["AGENT_ID"] = agent_id
+
+        # Start agent with job_id for log organization
+        process = await runner.start(
+            agent_config, connected_urls, agent_env, job_id=job.job.name
+        )
 
         # Get agent URL
         agent_url = plan.agent_urls.get(agent_id, "")
@@ -693,11 +824,17 @@ class AgentDeployer:
 
         logger.info(f"Agent {agent_id} deployed at {agent_url}")
 
+        # Get host for SSH deployments
+        host = None
+        if agent_config.deployment.target == "remote" and agent_config.deployment.host:
+            host = agent_config.deployment.host
+
         # Create deployed agent record
         deployed_agent = DeployedAgent(
             agent_id=agent_id,
             url=agent_url,
             process_id=getattr(process, "pid", None),
+            host=host,
             status="healthy",
         )
 
@@ -762,12 +899,22 @@ class AgentDeployer:
 
                     # Get agent config to determine runner
                     agent_config = deployed_job.definition.get_agent(agent_id)
-                    if agent_config:
+                    if agent_config and agent.process_id:
                         runner = self.runners.get(agent_config.deployment.target)
-                        if runner and agent.process_id:
-                            # Reconstruct process object (simplified)
-                            # In real implementation, we'd track processes
-                            pass
+                        if runner:
+                            # Stop by PID since we don't have process handles
+                            if hasattr(runner, "stop_by_pid"):
+                                # For SSH runner, pass host info
+                                if agent.host:
+                                    await runner.stop_by_pid(
+                                        agent.process_id, agent_id, host=agent.host
+                                    )
+                                else:
+                                    await runner.stop_by_pid(agent.process_id, agent_id)
+                            else:
+                                logger.warning(
+                                    f"Runner {type(runner).__name__} doesn't support stop_by_pid"
+                                )
 
         logger.info("Job stopped successfully")
 

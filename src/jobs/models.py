@@ -297,6 +297,7 @@ class DeployedAgent(BaseModel):
     url: str
     process_id: int | None = None
     container_id: str | None = None
+    host: str | None = None  # SSH host for remote agents
     status: Literal["starting", "healthy", "unhealthy", "stopped"] = "starting"
 
 
