@@ -138,8 +138,8 @@ class BaseA2AAgent(ABC):
         fh = logging.FileHandler(log_file, mode="a")
         fh.setLevel(logging.DEBUG)
 
-        # Console handler
-        ch = logging.StreamHandler()
+        # Console handler (use stdout, not stderr)
+        ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.INFO)
 
         # Detailed formatter for file logs
@@ -185,10 +185,7 @@ class BaseA2AAgent(ABC):
         self.logger.debug(f"Allowed tools: {allowed_tools}")
         self.logger.debug(f"Permission preset: {permission_preset.value}")
         self.logger.debug(
-            f"System prompt length: {len(self._active_system_prompt)} chars"
-        )
-        self.logger.debug(
-            f"System prompt preview: {self._active_system_prompt[:200]}..."
+            f"System prompt ({len(self._active_system_prompt)} chars):\n{self._active_system_prompt}"
         )
 
         # Use bypassPermissions mode for autonomous agent operation
