@@ -321,8 +321,23 @@ class SSHRunner(AgentRunner):
                 "Remote deployment requires 'host' in deployment config"
             )
 
+        # Parse SSH config file for host aliases
+        ssh_config = paramiko.SSHConfig()
+        ssh_config_path = os.path.expanduser("~/.ssh/config")
+        if os.path.exists(ssh_config_path):
+            with open(ssh_config_path) as f:
+                ssh_config.parse(f)
+            logger.debug(f"Loaded SSH config from {ssh_config_path}")
+
+        # Look up host in SSH config
+        host_config = ssh_config.lookup(host)
+        actual_hostname = host_config.get("hostname", host)
+        config_user = host_config.get("user")
+        config_port = host_config.get("port")
+        config_key = host_config.get("identityfile", [None])[0]
+
         # Reuse connection if exists
-        connection_key = f"{host}:{agent.deployment.port or 22}"
+        connection_key = f"{actual_hostname}:{agent.deployment.port or config_port or 22}"
         if connection_key in self.connections:
             return self.connections[connection_key]
 
@@ -340,15 +355,17 @@ class SSHRunner(AgentRunner):
         # If you need to add a new host, use: ssh-keyscan <host> >> ~/.ssh/known_hosts
         ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
 
-        # Get SSH configuration
-        user = agent.deployment.user or getpass.getuser()
-        ssh_port = agent.deployment.port or 22
+        # Get SSH configuration - agent config overrides SSH config
+        user = agent.deployment.user or config_user or getpass.getuser()
+        ssh_port = agent.deployment.port or (int(config_port) if config_port else 22)
         ssh_key = agent.deployment.ssh_key
         password = agent.deployment.password
 
-        # Expand ~ in ssh_key path
+        # Expand ~ in ssh_key path (agent config or SSH config)
         if ssh_key:
             ssh_key = os.path.expanduser(ssh_key)
+        elif config_key:
+            ssh_key = os.path.expanduser(config_key)
         else:
             # Try default key
             default_key = os.path.expanduser("~/.ssh/id_rsa")
@@ -356,10 +373,10 @@ class SSHRunner(AgentRunner):
                 ssh_key = default_key
 
         try:
-            logger.info(f"Connecting to {user}@{host}:{ssh_port}...")
+            logger.info(f"Connecting to {user}@{actual_hostname}:{ssh_port}...")
 
             connect_kwargs = {
-                "hostname": host,
+                "hostname": actual_hostname,
                 "port": ssh_port,
                 "username": user,
                 "timeout": 10,
@@ -509,6 +526,13 @@ class SSHRunner(AgentRunner):
             agent: Agent configuration
             remote_dir: Remote directory
         """
+        # Expand ~ to actual home directory (SFTP doesn't expand ~)
+        if remote_dir.startswith("~"):
+            stdin, stdout, stderr = ssh.exec_command("echo $HOME")
+            home = stdout.read().decode().strip()
+            remote_dir = remote_dir.replace("~", home, 1)
+            logger.debug(f"Expanded remote dir: {remote_dir}")
+
         sftp = ssh.open_sftp()
 
         try:
@@ -533,6 +557,40 @@ class SSHRunner(AgentRunner):
         finally:
             sftp.close()
 
+    def _sftp_mkdir_p(self, sftp: paramiko.SFTPClient, remote_path: str) -> None:
+        """Create remote directory and all parent directories.
+
+        Args:
+            sftp: SFTP client
+            remote_path: Remote directory path to create
+        """
+        # Normalize path and split into components
+        path = remote_path.replace("\\", "/")
+        parts = path.split("/")
+
+        # Handle absolute paths (starting with /)
+        if path.startswith("/"):
+            current = ""
+        else:
+            current = ""
+
+        for part in parts:
+            if not part:
+                continue
+            if part == "~":
+                current = "~"
+                continue
+            if current == "" and path.startswith("/"):
+                current = f"/{part}"
+            elif current:
+                current = f"{current}/{part}"
+            else:
+                current = part
+            try:
+                sftp.mkdir(current)
+            except OSError:
+                pass  # Directory exists
+
     async def _sync_directory(
         self, sftp: paramiko.SFTPClient, local_dir: Path, remote_dir: str
     ) -> None:
@@ -543,11 +601,8 @@ class SSHRunner(AgentRunner):
             local_dir: Local directory path
             remote_dir: Remote directory path
         """
-        # Create remote directory if it doesn't exist
-        try:
-            sftp.mkdir(remote_dir)
-        except OSError:
-            pass  # Directory exists
+        # Create remote directory tree
+        self._sftp_mkdir_p(sftp, remote_dir)
 
         for item in local_dir.iterdir():
             remote_path = f"{remote_dir}/{item.name}"
