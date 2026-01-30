@@ -134,12 +134,22 @@ class BaseA2AAgent(ABC):
         # Clear existing handlers to avoid duplicates
         self.logger.handlers.clear()
 
-        # File handler with detailed formatting
-        fh = logging.FileHandler(log_file, mode="a")
+        # File handler with detailed formatting (UTF-8 for emoji support)
+        fh = logging.FileHandler(log_file, mode="a", encoding="utf-8")
         fh.setLevel(logging.DEBUG)
 
         # Console handler (use stdout, not stderr)
-        ch = logging.StreamHandler(sys.stdout)
+        # Wrap stdout with UTF-8 encoding for Windows compatibility
+        if sys.platform == "win32":
+            # Windows console may not support UTF-8 by default
+            import io
+
+            utf8_stdout = io.TextIOWrapper(
+                sys.stdout.buffer, encoding="utf-8", errors="replace"
+            )
+            ch = logging.StreamHandler(utf8_stdout)
+        else:
+            ch = logging.StreamHandler(sys.stdout)
         ch.setLevel(logging.INFO)
 
         # Detailed formatter for file logs
