@@ -427,15 +427,17 @@ class TestClientPool:
         """_initialize_pool() should only initialize once."""
         mock_client = MagicMock()
         mock_client.connect = AsyncMock()
-        mock_claude_sdk.ClaudeSDKClient.return_value = mock_client
 
-        await agent_with_pool._initialize_pool()
-        call_count = mock_claude_sdk.ClaudeSDKClient.call_count
+        with patch(
+            "src.agents.base.ClaudeSDKClient", return_value=mock_client
+        ) as mock_cls:
+            await agent_with_pool._initialize_pool()
+            call_count = mock_cls.call_count
 
-        await agent_with_pool._initialize_pool()
+            await agent_with_pool._initialize_pool()
 
-        # Should not create more clients
-        assert mock_claude_sdk.ClaudeSDKClient.call_count == call_count
+            # Should not create more clients
+            assert mock_cls.call_count == call_count
 
     @pytest.mark.asyncio
     async def test_initialize_pool_continues_on_client_error(
@@ -444,12 +446,12 @@ class TestClientPool:
         """_initialize_pool() should continue if one client fails."""
         mock_client = MagicMock()
         mock_client.connect = AsyncMock(side_effect=[None, Exception("Failed"), None])
-        mock_claude_sdk.ClaudeSDKClient.return_value = mock_client
 
-        await agent_with_pool._initialize_pool()
+        with patch("src.agents.base.ClaudeSDKClient", return_value=mock_client):
+            await agent_with_pool._initialize_pool()
 
-        # Should still be initialized even with one failure
-        assert agent_with_pool._pool_initialized
+            # Should still be initialized even with one failure
+            assert agent_with_pool._pool_initialized
 
     @pytest.mark.asyncio
     async def test_get_pooled_client_returns_client(
@@ -458,11 +460,11 @@ class TestClientPool:
         """_get_pooled_client() should return a client from pool."""
         mock_client = MagicMock()
         mock_client.connect = AsyncMock()
-        mock_claude_sdk.ClaudeSDKClient.return_value = mock_client
 
-        client = await agent_with_pool._get_pooled_client()
+        with patch("src.agents.base.ClaudeSDKClient", return_value=mock_client):
+            client = await agent_with_pool._get_pooled_client()
 
-        assert client is not None
+            assert client is not None
 
     @pytest.mark.asyncio
     async def test_return_client_puts_back_in_pool(
@@ -471,19 +473,19 @@ class TestClientPool:
         """_return_client() should return client to pool."""
         mock_client = MagicMock()
         mock_client.connect = AsyncMock()
-        mock_claude_sdk.ClaudeSDKClient.return_value = mock_client
 
-        await agent_with_pool._initialize_pool()
-        initial_size = agent_with_pool._client_pool.qsize()
+        with patch("src.agents.base.ClaudeSDKClient", return_value=mock_client):
+            await agent_with_pool._initialize_pool()
+            initial_size = agent_with_pool._client_pool.qsize()
 
-        client = await agent_with_pool._get_pooled_client()
-        after_get_size = agent_with_pool._client_pool.qsize()
+            client = await agent_with_pool._get_pooled_client()
+            after_get_size = agent_with_pool._client_pool.qsize()
 
-        await agent_with_pool._return_client(client)
-        after_return_size = agent_with_pool._client_pool.qsize()
+            await agent_with_pool._return_client(client)
+            after_return_size = agent_with_pool._client_pool.qsize()
 
-        assert after_get_size == initial_size - 1
-        assert after_return_size == initial_size
+            assert after_get_size == initial_size - 1
+            assert after_return_size == initial_size
 
 
 # ============================================================================
