@@ -121,6 +121,20 @@ class AgentSettings(BaseSettings):
         description="Ollama API base URL",
     )
 
+    # Session settings for multi-turn conversations
+    max_sessions: int = Field(
+        default=100,
+        description="Maximum number of sessions per agent",
+    )
+    session_ttl_seconds: int = Field(
+        default=3600,
+        description="Session time-to-live in seconds (default: 1 hour)",
+    )
+    max_history_messages: int = Field(
+        default=20,
+        description="Maximum conversation history messages to include in prompt",
+    )
+
     def get_allowed_hosts_set(self) -> set[str]:
         """Get allowed hosts as a set.
 

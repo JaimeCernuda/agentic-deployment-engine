@@ -2,9 +2,11 @@
 
 from .logging import get_logger, setup_logging
 from .telemetry import (
+    add_span_attribute,
     extract_context,
     inject_context,
     instrument_fastapi,
+    record_exception,
     setup_telemetry,
     shutdown_telemetry,
     traced_operation,
@@ -15,9 +17,11 @@ __all__ = [
     "get_logger",
     "setup_logging",
     # Telemetry
+    "add_span_attribute",
     "extract_context",
     "inject_context",
     "instrument_fastapi",
+    "record_exception",
     "setup_telemetry",
     "shutdown_telemetry",
     "traced_operation",

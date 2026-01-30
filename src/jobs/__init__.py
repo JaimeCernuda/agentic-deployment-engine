@@ -17,8 +17,10 @@ from .models import (
     SSHConfig,
     TopologyConfig,
 )
+from .monitor import AgentHealthStatus, HealthMonitor, MonitorConfig
 
 __all__ = [
+    # Models
     "AgentConfig",
     "AgentDeploymentConfig",
     "AgentResourceConfig",
@@ -34,4 +36,8 @@ __all__ = [
     "NetworkConfig",
     "SSHConfig",
     "TopologyConfig",
+    # Monitoring
+    "AgentHealthStatus",
+    "HealthMonitor",
+    "MonitorConfig",
 ]

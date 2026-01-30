@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from ..backends import AgentBackend, BackendConfig
 from ..config import settings
 from ..observability import (
+    add_span_attribute,
     extract_context,
     instrument_fastapi,
     setup_telemetry,
@@ -30,6 +31,7 @@ from ..observability import (
 )
 from ..security import PermissionPreset, filter_allowed_tools, verify_api_key
 from .registry import AgentRegistry
+from .sessions import SessionManager
 
 
 def create_backend(config: BackendConfig) -> AgentBackend:
@@ -73,12 +75,21 @@ def create_backend(config: BackendConfig) -> AgentBackend:
 
 
 class QueryRequest(BaseModel):
+    """Request model for agent queries.
+
+    Supports multi-turn conversations via session_id.
+    """
+
     query: str
-    context: dict[str, Any] = {}
+    session_id: str | None = None  # Optional session for multi-turn context
+    context: dict[str, Any] = {}  # Additional context metadata
 
 
 class QueryResponse(BaseModel):
+    """Response model for agent queries."""
+
     response: str
+    session_id: str | None = None  # Session ID for continuing conversation
 
 
 class BaseA2AAgent(ABC):
@@ -109,6 +120,12 @@ class BaseA2AAgent(ABC):
         self.agent_registry = AgentRegistry() if connected_agents else None
         self.permission_preset = permission_preset
         self.custom_permission_rules = custom_permission_rules
+
+        # Session manager for multi-turn conversations
+        self.session_manager = SessionManager(
+            max_sessions=settings.max_sessions,
+            session_ttl_seconds=settings.session_ttl_seconds,
+        )
 
         # System prompt - immutable after initialization for thread safety
         # Use _base_system_prompt for the original, _active_system_prompt for current
@@ -282,18 +299,44 @@ class BaseA2AAgent(ABC):
             Authentication is controlled by AGENT_AUTH_REQUIRED env var.
             If set to 'true', requests must include X-API-Key header or
             api_key query parameter matching AGENT_API_KEY.
+
+            Supports multi-turn conversations via session_id in request body.
             """
             # Extract trace context from incoming headers for distributed tracing
             # This links the incoming request to the parent trace
             _ = extract_context(dict(http_request.headers))
 
-            # Create child span for this query
+            # Get or create session for multi-turn context
+            session = self.session_manager.get_or_create_session(body.session_id)
+
+            # Create child span for this query with session tracking
             with traced_operation(
                 "handle_query",
-                {"agent.name": self.name, "query.length": str(len(body.query))},
+                {
+                    "agent.name": self.name,
+                    "query.length": str(len(body.query)),
+                    "session.id": session.session_id,
+                    "session.message_count": str(len(session.messages)),
+                },
             ):
-                response = await self._handle_query(body.query)
-                return QueryResponse(response=response)
+                # Add user message to session history
+                session.add_message("user", body.query)
+
+                # Get conversation history for context
+                history = session.get_history_for_prompt(
+                    max_messages=settings.max_history_messages
+                )
+
+                # Handle query with session context
+                response = await self._handle_query(body.query, history)
+
+                # Add assistant response to session history
+                session.add_message("assistant", response)
+
+                return QueryResponse(
+                    response=response,
+                    session_id=session.session_id,
+                )
 
     async def _initialize_pool(self) -> None:
         """Initialize the client pool with pre-connected clients.
@@ -355,14 +398,23 @@ class BaseA2AAgent(ABC):
         """Get claude-code-sdk client (legacy method, uses pool now)."""
         return await self._get_pooled_client()
 
-    async def _handle_query(self, query: str) -> str:
+    async def _handle_query(self, query: str, history: str = "") -> str:
         """Handle query using pooled claude-code-sdk client.
 
         Uses connection pooling for 10-100x better performance than
         creating a fresh client per query.
+
+        Args:
+            query: The user's query string.
+            history: Optional conversation history for multi-turn context.
+
+        Returns:
+            The assistant's response string.
         """
         self.logger.info(f"Handling query: {query}")
         self.logger.debug(f"Query length: {len(query)} chars")
+        if history:
+            self.logger.debug(f"Using conversation history ({len(history)} chars)")
 
         client = None
         try:
@@ -370,8 +422,14 @@ class BaseA2AAgent(ABC):
             client = await self._get_pooled_client()
             self.logger.debug("Using pooled client for query")
 
+            # Build the full query with conversation history context
+            if history:
+                full_query = f"{history}\n\n[Current Query]: {query}"
+            else:
+                full_query = query
+
             self.logger.debug("Sending query to Claude...")
-            await client.query(query)
+            await client.query(full_query)
 
             response = ""
             message_count = 0

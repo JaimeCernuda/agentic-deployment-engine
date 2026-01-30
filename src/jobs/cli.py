@@ -434,10 +434,22 @@ def query(
     agent: str | None = typer.Option(
         None, "--agent", "-a", help="Specific agent to query (default: entry point)"
     ),
+    session: str | None = typer.Option(
+        None,
+        "--session",
+        "-s",
+        help="Session ID for multi-turn conversation (reuse to maintain context)",
+    ),
     timeout: int = typer.Option(60, "--timeout", "-t", help="Timeout in seconds"),
     raw: bool = typer.Option(False, "--raw", "-r", help="Output raw JSON response"),
 ):
-    """Send a query to a running job."""
+    """Send a query to a running job.
+
+    Use --session to maintain conversation context across multiple queries:
+
+        uv run deploy query my-job "Hello" --session my-session
+        uv run deploy query my-job "What did I just say?" --session my-session
+    """
     registry = get_registry()
     job_state = registry.get_job(job_name)
 
@@ -477,13 +489,21 @@ def query(
 
     # Send query
     if not raw:
-        console.print(f"[dim]Querying {agent} at {target_agent.url}...[/dim]")
+        session_info = f" (session: {session})" if session else ""
+        console.print(
+            f"[dim]Querying {agent} at {target_agent.url}{session_info}...[/dim]"
+        )
 
     async def send_query():
         async with httpx.AsyncClient(timeout=timeout) as client:
+            # Include session_id in request body for multi-turn context
+            request_body = {"query": message}
+            if session:
+                request_body["session_id"] = session
+
             response = await client.post(
                 f"{target_agent.url}/query",
-                json={"query": message},
+                json=request_body,
             )
             response.raise_for_status()
             return response.json()
@@ -495,9 +515,13 @@ def query(
             console.print(json.dumps(result, indent=2))
         else:
             response_text = result.get("response", str(result))
-            console.print(
-                Panel(response_text, title=f"[bold]{agent}[/bold]", expand=False)
-            )
+            # Show session ID if returned (for continuing conversation)
+            session_id = result.get("session_id")
+            title = f"[bold]{agent}[/bold]"
+            if session_id and not session:
+                # New session created, show ID for reuse
+                title += f" [dim](session: {session_id})[/dim]"
+            console.print(Panel(response_text, title=title, expand=False))
 
     except httpx.TimeoutException:
         console.print(f"[red][FAIL] Request timed out after {timeout}s[/red]")
