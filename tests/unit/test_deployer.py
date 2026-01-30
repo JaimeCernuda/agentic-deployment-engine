@@ -8,8 +8,6 @@ Tests cover:
 - Error handling and cleanup
 """
 
-import asyncio
-import subprocess
 import sys
 import tempfile
 from pathlib import Path

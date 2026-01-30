@@ -13,7 +13,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import pytest
 import yaml
 from typer.testing import CliRunner
 
@@ -178,7 +177,7 @@ class TestListCommand:
             mock_registry.list_jobs.return_value = []
             mock_get_registry.return_value = mock_registry
 
-            result = runner.invoke(app, ["list", "--all"])
+            runner.invoke(app, ["list", "--all"])
 
             # Should have called with status=None
             mock_registry.list_jobs.assert_called_with(status=None, limit=20)
@@ -251,8 +250,8 @@ class TestStopCommand:
     def test_stop_running_job(self) -> None:
         """Stop command stops running job agents."""
         with patch("src.jobs.cli.get_registry") as mock_get_registry:
-            with patch("os.system") as mock_system:
-                with patch("os.kill") as mock_kill:
+            with patch("os.system"):
+                with patch("os.kill"):
                     mock_registry = MagicMock()
                     mock_job = MagicMock()
                     mock_job.status = "running"
