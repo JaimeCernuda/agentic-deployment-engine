@@ -102,7 +102,7 @@ class TestBaseA2AAgentInitialization:
                 return []
 
         with patch("src.agents.base.AgentRegistry"):
-            agent = TestAgent(
+            _agent = TestAgent(
                 name="Test Agent",
                 description="Test",
                 port=9001,
@@ -189,7 +189,7 @@ class TestBaseA2AAgentInitialization:
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.agents.base.AgentRegistry") as MockRegistry:
+        with patch("src.agents.base.AgentRegistry") as _MockRegistry:
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -506,9 +506,7 @@ class TestAgentDiscovery:
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch(
-            "src.agents.base.AgentRegistry", return_value=mock_agent_registry
-        ):
+        with patch("src.agents.base.AgentRegistry", return_value=mock_agent_registry):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -690,9 +688,7 @@ class TestCleanup:
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch(
-            "src.agents.base.AgentRegistry", return_value=mock_agent_registry
-        ):
+        with patch("src.agents.base.AgentRegistry", return_value=mock_agent_registry):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -975,7 +971,7 @@ class TestRunMethod:
         with (
             patch.object(
                 agent, "_discover_agents", new_callable=AsyncMock
-            ) as mock_discover,
+            ) as _mock_discover,
             patch("src.agents.base.uvicorn.run") as mock_uvicorn,
         ):
             agent.run()

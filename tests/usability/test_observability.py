@@ -6,8 +6,6 @@ for debugging and monitoring agent behavior.
 
 import pytest
 
-from src.config import settings
-
 pytestmark = [pytest.mark.usability]
 
 

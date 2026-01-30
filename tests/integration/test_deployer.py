@@ -165,7 +165,7 @@ class TestLocalRunner:
             mock_process.poll.return_value = None  # Process is running
             mock_popen.return_value = mock_process
 
-            result = await runner.start(agent_config, [], {})
+            _result = await runner.start(agent_config, [], {})
 
             mock_popen.assert_called_once()
             call_args = mock_popen.call_args

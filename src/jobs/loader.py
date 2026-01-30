@@ -43,7 +43,7 @@ class JobLoader:
             with open(yaml_path) as f:
                 data = yaml.safe_load(f)
         except yaml.YAMLError as e:
-            raise JobLoadError(f"Invalid YAML: {e}")
+            raise JobLoadError(f"Invalid YAML: {e}") from e
 
         if not isinstance(data, dict):
             raise JobLoadError("Job file must contain a dictionary")
@@ -52,7 +52,7 @@ class JobLoader:
         try:
             job = JobDefinition(**data)
         except ValidationError as e:
-            raise JobLoadError(f"Validation error:\n{e}")
+            raise JobLoadError(f"Validation error:\n{e}") from e
 
         # 3. Validate agents exist and are importable
         self._validate_agents_importable(job)
@@ -88,7 +88,9 @@ class JobLoader:
                         f"Agent type '{agent.type}' not found in module '{agent.module}'"
                     )
             except ImportError as e:
-                raise JobLoadError(f"Cannot import agent module '{agent.module}': {e}")
+                raise JobLoadError(
+                    f"Cannot import agent module '{agent.module}': {e}"
+                ) from e
 
     def _validate_topology_references(self, job: JobDefinition) -> None:
         """Validate that topology references valid agent IDs.

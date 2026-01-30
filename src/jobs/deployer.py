@@ -162,7 +162,7 @@ class LocalRunner(AgentRunner):
         except Exception as e:
             stdout_file.close()
             stderr_file.close()
-            raise DeploymentError(f"Failed to start agent {agent.id}: {e}")
+            raise DeploymentError(f"Failed to start agent {agent.id}: {e}") from e
 
     async def stop(self, process: subprocess.Popen, agent_id: str) -> None:
         """Stop agent process.
@@ -306,7 +306,7 @@ class SSHRunner(AgentRunner):
             return ssh
 
         except Exception as e:
-            raise DeploymentError(f"SSH connection failed to {user}@{host}: {e}")
+            raise DeploymentError(f"SSH connection failed to {user}@{host}: {e}") from e
 
     async def start(
         self, agent: AgentConfig, connected_urls: list[str], env: dict[str, str]
@@ -391,7 +391,7 @@ class SSHRunner(AgentRunner):
             pid = int(pid_str)
         except ValueError:
             error = stderr.read().decode()
-            raise DeploymentError(f"Failed to start remote agent: {error}")
+            raise DeploymentError(f"Failed to start remote agent: {error}") from None
 
         logger.info(f"Remote process started (PID: {pid})")
 
@@ -411,7 +411,10 @@ class SSHRunner(AgentRunner):
                 f"Remote agent {agent.id} failed to start:\n{log_output}"
             )
 
-        return RemoteProcess(ssh, pid, agent.id, agent.deployment.host)
+        host = agent.deployment.host
+        if host is None:
+            raise DeploymentError(f"No host specified for remote agent {agent.id}")
+        return RemoteProcess(ssh, pid, agent.id, host)
 
     async def _transfer_code(
         self, ssh: paramiko.SSHClient, agent: AgentConfig, remote_dir: str
@@ -606,7 +609,7 @@ class AgentDeployer:
                         except Exception as e:
                             raise DeploymentError(
                                 f"Failed to deploy agent {agent_id}: {e}"
-                            )
+                            ) from e
 
                 else:
                     # Sequential deployment
@@ -620,7 +623,7 @@ class AgentDeployer:
                         except Exception as e:
                             raise DeploymentError(
                                 f"Failed to deploy agent {agent_id}: {e}"
-                            )
+                            ) from e
 
             logger.info(f"Deployed {len(deployed_agents)} agents successfully")
 

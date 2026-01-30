@@ -3,7 +3,6 @@
 Provides reusable fixtures for testing A2A agents, transport, and deployment.
 """
 
-import os
 import socket
 
 # Add project root to path

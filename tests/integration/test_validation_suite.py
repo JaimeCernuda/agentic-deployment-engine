@@ -36,7 +36,7 @@ def test_validation_suite():
     results = {"passed": 0, "failed": 0, "skipped": 0}
 
     for filename, description in examples:
-        job_path = f"jobs/examples/{filename}"
+        job_path = f"examples/jobs/{filename}"
         if not Path(job_path).exists():
             print(f"⊘ {filename:30s} - File not found")
             results["skipped"] += 1
@@ -72,8 +72,8 @@ def test_validation_suite():
     # Test 2: Topology Patterns
     print_section("TEST 2: Topology Patterns")
 
-    for filename, description in examples:
-        job_path = f"jobs/examples/{filename}"
+    for filename, _description in examples:
+        job_path = f"examples/jobs/{filename}"
         if not Path(job_path).exists():
             continue
 
@@ -95,7 +95,7 @@ def test_validation_suite():
 
     print("Testing URL resolution for different deployment targets:\n")
 
-    test_job = loader.load("jobs/examples/ssh-localhost.yaml")
+    test_job = loader.load("examples/jobs/ssh-localhost.yaml")
     test_plan = resolver.resolve(test_job)
 
     print("Agent URLs:")
@@ -110,7 +110,7 @@ def test_validation_suite():
 
     print("Testing connection resolution:\n")
 
-    test_job = loader.load("jobs/examples/simple-weather.yaml")
+    test_job = loader.load("examples/jobs/simple-weather.yaml")
     test_plan = resolver.resolve(test_job)
 
     print("Connections:")

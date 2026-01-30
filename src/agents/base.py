@@ -18,10 +18,8 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel
 
-from .registry import AgentRegistry
 from ..backends import AgentBackend, BackendConfig
 from ..config import settings
-from ..security import PermissionPreset, filter_allowed_tools, verify_api_key
 from ..observability import (
     extract_context,
     instrument_fastapi,
@@ -29,6 +27,8 @@ from ..observability import (
     shutdown_telemetry,
     traced_operation,
 )
+from ..security import PermissionPreset, filter_allowed_tools, verify_api_key
+from .registry import AgentRegistry
 
 
 def create_backend(config: BackendConfig) -> AgentBackend:
@@ -93,7 +93,7 @@ class BaseA2AAgent(ABC):
         description: str,
         port: int,
         sdk_mcp_server=None,
-        system_prompt: str = None,
+        system_prompt: str | None = None,
         connected_agents: list[str] | None = None,
         permission_preset: PermissionPreset = PermissionPreset.FULL_ACCESS,
         custom_permission_rules: list[str] | None = None,
@@ -202,7 +202,7 @@ class BaseA2AAgent(ABC):
         )
         self._pool_initialized = False
         self._pool_lock = asyncio.Lock()
-        self.claude_client = None  # Kept for backwards compatibility
+        self.claude_client: ClaudeSDKClient | None = None  # Backwards compat
 
         # Backend abstraction (optional - if not provided, use factory)
         if backend:
@@ -364,45 +364,52 @@ class BaseA2AAgent(ABC):
                 message_type = type(message).__name__
                 self.logger.debug(f"Message {message_count}: {message_type}")
 
-                # Log message details based on type
-                if hasattr(message, "role"):
-                    self.logger.debug(f"  Role: {message.role}")
+                # Log message details based on type (using getattr for type safety)
+                role = getattr(message, "role", None)
+                if role is not None:
+                    self.logger.debug(f"  Role: {role}")
 
-                if hasattr(message, "content"):
-                    for i, block in enumerate(message.content):
+                content = getattr(message, "content", None)
+                if content is not None:
+                    for i, block in enumerate(content):
                         block_type = type(block).__name__
                         self.logger.debug(f"  Content block {i}: {block_type}")
 
-                        if hasattr(block, "text"):
+                        text = getattr(block, "text", None)
+                        if text is not None:
                             # Use configurable truncation (0 = unlimited)
                             max_len = settings.log_max_content_length
-                            if max_len > 0 and len(block.text) > max_len:
-                                text_preview = block.text[:max_len] + "..."
+                            if max_len > 0 and len(text) > max_len:
+                                text_preview = text[:max_len] + "..."
                             else:
-                                text_preview = block.text
+                                text_preview = text
                             self.logger.debug(f"    Text: {text_preview}")
-                            response += block.text
+                            response += text
 
-                        if hasattr(block, "name"):
+                        tool_name = getattr(block, "name", None)
+                        if tool_name is not None:
                             tool_use_count += 1
-                            self.logger.debug(f"    Tool: {block.name}")
-                            if hasattr(block, "input"):
-                                self.logger.debug(f"    Input: {block.input}")
+                            self.logger.debug(f"    Tool: {tool_name}")
+                            tool_input = getattr(block, "input", None)
+                            if tool_input is not None:
+                                self.logger.debug(f"    Input: {tool_input}")
 
                         # Log tool results (success or error)
-                        if hasattr(block, "tool_use_id"):
-                            self.logger.debug(
-                                f"    Tool Result for: {block.tool_use_id}"
-                            )
-                            if hasattr(block, "content"):
+                        tool_use_id = getattr(block, "tool_use_id", None)
+                        if tool_use_id is not None:
+                            self.logger.debug(f"    Tool Result for: {tool_use_id}")
+                            result_content = getattr(block, "content", None)
+                            if result_content is not None:
                                 self.logger.debug(
-                                    f"    Result content: {block.content}"
+                                    f"    Result content: {result_content}"
                                 )
-                            if hasattr(block, "is_error"):
-                                self.logger.debug(f"    Is error: {block.is_error}")
+                            is_error = getattr(block, "is_error", None)
+                            if is_error is not None:
+                                self.logger.debug(f"    Is error: {is_error}")
 
-                if hasattr(message, "stop_reason"):
-                    self.logger.debug(f"  Stop reason: {message.stop_reason}")
+                stop_reason = getattr(message, "stop_reason", None)
+                if stop_reason is not None:
+                    self.logger.debug(f"  Stop reason: {stop_reason}")
 
             self.logger.info(
                 f"Query completed. Messages: {message_count}, "

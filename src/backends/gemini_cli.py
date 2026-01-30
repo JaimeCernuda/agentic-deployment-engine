@@ -233,6 +233,9 @@ class GeminiCLIBackend(AgentBackend):
                 )
 
             # Read streaming output line by line
+            if process.stdout is None:
+                raise AgentBackendError(self.name, "No stdout stream")
+
             while True:
                 line = await process.stdout.readline()
                 if not line:
@@ -248,8 +251,10 @@ class GeminiCLIBackend(AgentBackend):
             await process.wait()
 
             if process.returncode != 0:
-                stderr = await process.stderr.read()
-                error_msg = stderr.decode().strip()
+                error_msg = ""
+                if process.stderr is not None:
+                    stderr_data = await process.stderr.read()
+                    error_msg = stderr_data.decode().strip()
                 logger.error(f"Gemini CLI streaming error: {error_msg}")
                 raise AgentBackendError(self.name, f"CLI error: {error_msg}")
 

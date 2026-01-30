@@ -8,7 +8,6 @@ Tests A2A transport functionality including:
 - Edge cases and error handling
 """
 
-import os
 from unittest.mock import MagicMock, patch
 
 
@@ -212,7 +211,7 @@ class TestCreateA2ATransportServer:
 
             from src.agents.transport import create_a2a_transport_server
 
-            result = create_a2a_transport_server()
+            _result = create_a2a_transport_server()
 
             mock_create.assert_called_once()
             call_kwargs = mock_create.call_args

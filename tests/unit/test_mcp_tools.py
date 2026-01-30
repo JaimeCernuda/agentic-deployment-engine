@@ -126,8 +126,8 @@ class TestDataConsistency:
 
     def test_weather_cities_in_maps(self):
         """Verify weather cities are available in maps."""
-        weather_cities = set(city.lower() for city in WEATHER_DATA.keys())
-        maps_cities = set(city.lower() for city in CITY_COORDINATES.keys())
+        weather_cities = {city.lower() for city in WEATHER_DATA.keys()}
+        maps_cities = {city.lower() for city in CITY_COORDINATES.keys()}
 
         # All weather cities should have coordinates
         assert weather_cities.issubset(maps_cities), (

@@ -1,6 +1,8 @@
-# SSH Testing Guide
+# SSH deployment
 
-## Quick Test: SSH to Localhost
+This guide covers deploying agents to remote hosts via SSH.
+
+## Quick test: SSH to localhost
 
 ### Option 1: Automated Setup (Recommended)
 
@@ -85,17 +87,17 @@ uv run python test_ssh_localhost.py
 
 If you have access to another machine with SSH, you can test there:
 
-1. Edit `jobs/examples/ssh-multi-host.yaml`
+1. Edit `examples/jobs/ssh-multi-host.yaml`
 2. Replace hostnames with your actual hosts
 3. Run the test
 
 ```bash
 # Edit the file to use your real hosts
-vim jobs/examples/ssh-multi-host.yaml
+vim examples/jobs/ssh-multi-host.yaml
 
 # Test
-uv run deploy validate jobs/examples/ssh-multi-host.yaml
-uv run deploy start jobs/examples/ssh-multi-host.yaml
+uv run deploy validate examples/jobs/ssh-multi-host.yaml
+uv run deploy start examples/jobs/ssh-multi-host.yaml
 ```
 
 ## Troubleshooting
@@ -166,7 +168,7 @@ If you're running in WSL (which you are), you may need to:
 Once SSH is set up, the test will:
 
 1. ✅ Verify SSH connectivity
-2. ✅ Load `jobs/examples/ssh-localhost.yaml`
+2. ✅ Load `examples/jobs/ssh-localhost.yaml`
 3. ✅ Deploy 2 agents via SSH (weather, maps)
 4. ✅ Deploy 1 agent locally (controller)
 5. ✅ Verify health checks
@@ -218,7 +220,7 @@ SSH LOCALHOST DEPLOYMENT TEST
 1. Checking SSH connectivity...
    ✓ SSH to localhost is working
 
-2. Loading job: jobs/examples/ssh-localhost.yaml
+2. Loading job: examples/jobs/ssh-localhost.yaml
    ✓ Job: ssh-localhost-test
    ✓ Agents: 3
      - weather: remote (host=localhost)
@@ -292,7 +294,7 @@ Verified:
 After verifying SSH works locally:
 
 1. **Test with Real Cluster:**
-   - Update `jobs/examples/ssh-multi-host.yaml` with your cluster hosts
+   - Update `examples/jobs/ssh-multi-host.yaml` with your cluster hosts
    - Ensure passwordless SSH is configured across cluster
    - Verify unified usernames
    - Deploy!
@@ -317,6 +319,6 @@ After verifying SSH works locally:
 
 - **Test Script:** `test_ssh_localhost.py`
 - **Setup Script:** `setup_ssh_localhost.sh`
-- **Job Definition:** `jobs/examples/ssh-localhost.yaml`
-- **Multi-host Example:** `jobs/examples/ssh-multi-host.yaml`
-- **Full Guide:** `jobs/SSH_DEPLOYMENT_GUIDE.md`
+- **Job Definition:** `examples/jobs/ssh-localhost.yaml`
+- **Multi-host Example:** `examples/jobs/ssh-multi-host.yaml`
+- **Full Guide:** `docs/ssh-deployment.md`

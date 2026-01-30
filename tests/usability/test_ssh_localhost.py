@@ -181,7 +181,7 @@ async def test_ssh_localhost_deployment():
         try:
             if "remote" in deployer.runners:
                 deployer.runners["remote"].close_all()
-        except:
+        except Exception:
             pass
 
         return False

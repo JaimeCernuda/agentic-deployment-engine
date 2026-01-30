@@ -16,8 +16,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.agents.transport import is_safe_url
 from src.agents.registry import AgentInfo, AgentRegistry, sanitize_prompt_text
+from src.agents.transport import is_safe_url
 
 
 class TestIsSafeUrl:

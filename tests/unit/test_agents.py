@@ -17,14 +17,18 @@ class TestWeatherAgent:
 
     def test_init_creates_agent_with_default_port(self) -> None:
         """Should create WeatherAgent on port 9001 by default."""
-        with patch("examples.agents.weather_agent.create_sdk_mcp_server") as mock_create:
+        with patch(
+            "examples.agents.weather_agent.create_sdk_mcp_server"
+        ) as mock_create:
             mock_server = MagicMock()
             mock_create.return_value = mock_server
 
-            with patch("examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.weather_agent import WeatherAgent
 
-                agent = WeatherAgent()
+                _agent = WeatherAgent()
 
                 # Verify SDK server was created with correct name
                 mock_create.assert_called_once()
@@ -34,15 +38,19 @@ class TestWeatherAgent:
 
     def test_init_accepts_custom_port(self) -> None:
         """Should accept custom port configuration."""
-        with patch("examples.agents.weather_agent.create_sdk_mcp_server") as mock_create:
+        with patch(
+            "examples.agents.weather_agent.create_sdk_mcp_server"
+        ) as mock_create:
             mock_server = MagicMock()
             mock_create.return_value = mock_server
 
-            with patch("examples.agents.weather_agent.BaseA2AAgent.__init__") as mock_init:
+            with patch(
+                "examples.agents.weather_agent.BaseA2AAgent.__init__"
+            ) as mock_init:
                 mock_init.return_value = None
                 from examples.agents.weather_agent import WeatherAgent
 
-                agent = WeatherAgent(port=8080)
+                _agent = WeatherAgent(port=8080)
 
                 mock_init.assert_called_once()
                 call_kwargs = mock_init.call_args[1]
@@ -51,7 +59,9 @@ class TestWeatherAgent:
     def test_get_skills_returns_weather_skills(self) -> None:
         """Should return weather-related skills."""
         with patch("examples.agents.weather_agent.create_sdk_mcp_server"):
-            with patch("examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.weather_agent import WeatherAgent
 
                 agent = WeatherAgent()
@@ -65,7 +75,9 @@ class TestWeatherAgent:
     def test_get_skills_has_examples(self) -> None:
         """Skills should include usage examples."""
         with patch("examples.agents.weather_agent.create_sdk_mcp_server"):
-            with patch("examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.weather_agent import WeatherAgent
 
                 agent = WeatherAgent()
@@ -78,7 +90,9 @@ class TestWeatherAgent:
     def test_get_allowed_tools_returns_mcp_tools(self) -> None:
         """Should return MCP tool names for SDK integration."""
         with patch("examples.agents.weather_agent.create_sdk_mcp_server"):
-            with patch("examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.weather_agent import WeatherAgent
 
                 agent = WeatherAgent()
@@ -91,11 +105,13 @@ class TestWeatherAgent:
     def test_system_prompt_includes_tool_instructions(self) -> None:
         """System prompt should include tool usage instructions."""
         with patch("examples.agents.weather_agent.create_sdk_mcp_server"):
-            with patch("examples.agents.weather_agent.BaseA2AAgent.__init__") as mock_init:
+            with patch(
+                "examples.agents.weather_agent.BaseA2AAgent.__init__"
+            ) as mock_init:
                 mock_init.return_value = None
                 from examples.agents.weather_agent import WeatherAgent
 
-                agent = WeatherAgent()
+                _agent = WeatherAgent()
 
                 call_kwargs = mock_init.call_args[1]
                 prompt = call_kwargs["system_prompt"]
@@ -113,10 +129,12 @@ class TestMapsAgent:
             mock_server = MagicMock()
             mock_create.return_value = mock_server
 
-            with patch("examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.maps_agent import MapsAgent
 
-                agent = MapsAgent()
+                _agent = MapsAgent()
 
                 mock_create.assert_called_once()
                 call_kwargs = mock_create.call_args[1]
@@ -129,7 +147,7 @@ class TestMapsAgent:
                 mock_init.return_value = None
                 from examples.agents.maps_agent import MapsAgent
 
-                agent = MapsAgent(port=7070)
+                _agent = MapsAgent(port=7070)
 
                 call_kwargs = mock_init.call_args[1]
                 assert call_kwargs["port"] == 7070
@@ -137,7 +155,9 @@ class TestMapsAgent:
     def test_get_skills_returns_maps_skills(self) -> None:
         """Should return maps-related skills."""
         with patch("examples.agents.maps_agent.create_sdk_mcp_server"):
-            with patch("examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.maps_agent import MapsAgent
 
                 agent = MapsAgent()
@@ -151,7 +171,9 @@ class TestMapsAgent:
     def test_get_skills_includes_tags(self) -> None:
         """Skills should include searchable tags."""
         with patch("examples.agents.maps_agent.create_sdk_mcp_server"):
-            with patch("examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.maps_agent import MapsAgent
 
                 agent = MapsAgent()
@@ -164,7 +186,9 @@ class TestMapsAgent:
     def test_get_allowed_tools_returns_mcp_tools(self) -> None:
         """Should return MCP tool names for SDK integration."""
         with patch("examples.agents.maps_agent.create_sdk_mcp_server"):
-            with patch("examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None):
+            with patch(
+                "examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None
+            ):
                 from examples.agents.maps_agent import MapsAgent
 
                 agent = MapsAgent()
@@ -186,11 +210,13 @@ class TestControllerAgent:
             mock_server = MagicMock()
             mock_create.return_value = mock_server
 
-            with patch("examples.agents.controller_agent.BaseA2AAgent.__init__") as mock_init:
+            with patch(
+                "examples.agents.controller_agent.BaseA2AAgent.__init__"
+            ) as mock_init:
                 mock_init.return_value = None
                 from examples.agents.controller_agent import ControllerAgent
 
-                agent = ControllerAgent()
+                _agent = ControllerAgent()
 
                 call_kwargs = mock_init.call_args[1]
                 assert call_kwargs["port"] == 9000
@@ -198,11 +224,13 @@ class TestControllerAgent:
     def test_init_with_default_connected_agents(self) -> None:
         """Should connect to default Weather and Maps agents."""
         with patch("examples.agents.controller_agent.create_a2a_transport_server"):
-            with patch("examples.agents.controller_agent.BaseA2AAgent.__init__") as mock_init:
+            with patch(
+                "examples.agents.controller_agent.BaseA2AAgent.__init__"
+            ) as mock_init:
                 mock_init.return_value = None
                 from examples.agents.controller_agent import ControllerAgent
 
-                agent = ControllerAgent()
+                _agent = ControllerAgent()
 
                 call_kwargs = mock_init.call_args[1]
                 connected = call_kwargs["connected_agents"]
@@ -218,11 +246,13 @@ class TestControllerAgent:
         ]
 
         with patch("examples.agents.controller_agent.create_a2a_transport_server"):
-            with patch("examples.agents.controller_agent.BaseA2AAgent.__init__") as mock_init:
+            with patch(
+                "examples.agents.controller_agent.BaseA2AAgent.__init__"
+            ) as mock_init:
                 mock_init.return_value = None
                 from examples.agents.controller_agent import ControllerAgent
 
-                agent = ControllerAgent(connected_agents=custom_agents)
+                _agent = ControllerAgent(connected_agents=custom_agents)
 
                 call_kwargs = mock_init.call_args[1]
                 assert call_kwargs["connected_agents"] == custom_agents
@@ -231,7 +261,8 @@ class TestControllerAgent:
         """Should return coordination-related skills."""
         with patch("examples.agents.controller_agent.create_a2a_transport_server"):
             with patch(
-                "examples.agents.controller_agent.BaseA2AAgent.__init__", return_value=None
+                "examples.agents.controller_agent.BaseA2AAgent.__init__",
+                return_value=None,
             ):
                 from examples.agents.controller_agent import ControllerAgent
 
@@ -251,7 +282,8 @@ class TestControllerAgent:
         """
         with patch("examples.agents.controller_agent.create_a2a_transport_server"):
             with patch(
-                "examples.agents.controller_agent.BaseA2AAgent.__init__", return_value=None
+                "examples.agents.controller_agent.BaseA2AAgent.__init__",
+                return_value=None,
             ):
                 from examples.agents.controller_agent import ControllerAgent
 
@@ -269,7 +301,9 @@ class TestWeatherAgentMain:
     def test_main_reads_port_from_environment(self) -> None:
         """Should read port from AGENT_PORT environment variable."""
         with patch.dict(os.environ, {"AGENT_PORT": "8888"}):
-            with patch("examples.agents.weather_agent.WeatherAgent") as mock_agent_class:
+            with patch(
+                "examples.agents.weather_agent.WeatherAgent"
+            ) as mock_agent_class:
                 mock_agent = MagicMock()
                 mock_agent_class.return_value = mock_agent
 
@@ -283,7 +317,9 @@ class TestWeatherAgentMain:
     def test_main_uses_default_port(self) -> None:
         """Should use default port 9001 when not specified."""
         with patch.dict(os.environ, {}, clear=True):
-            with patch("examples.agents.weather_agent.WeatherAgent") as mock_agent_class:
+            with patch(
+                "examples.agents.weather_agent.WeatherAgent"
+            ) as mock_agent_class:
                 mock_agent = MagicMock()
                 mock_agent_class.return_value = mock_agent
 
@@ -330,7 +366,9 @@ class TestControllerAgentMain:
     def test_main_reads_port_from_environment(self) -> None:
         """Should read port from AGENT_PORT environment variable."""
         with patch.dict(os.environ, {"AGENT_PORT": "6666"}, clear=True):
-            with patch("examples.agents.controller_agent.ControllerAgent") as mock_agent_class:
+            with patch(
+                "examples.agents.controller_agent.ControllerAgent"
+            ) as mock_agent_class:
                 mock_agent = MagicMock()
                 mock_agent_class.return_value = mock_agent
 
@@ -351,7 +389,9 @@ class TestControllerAgentMain:
                 "CONNECTED_AGENTS": "http://host1:8001, http://host2:8002",
             },
         ):
-            with patch("examples.agents.controller_agent.ControllerAgent") as mock_agent_class:
+            with patch(
+                "examples.agents.controller_agent.ControllerAgent"
+            ) as mock_agent_class:
                 mock_agent = MagicMock()
                 mock_agent_class.return_value = mock_agent
 
@@ -367,7 +407,9 @@ class TestControllerAgentMain:
     def test_main_uses_default_connected_agents(self) -> None:
         """Should use None (defaults) when CONNECTED_AGENTS not set."""
         with patch.dict(os.environ, {"AGENT_PORT": "9000"}, clear=True):
-            with patch("examples.agents.controller_agent.ControllerAgent") as mock_agent_class:
+            with patch(
+                "examples.agents.controller_agent.ControllerAgent"
+            ) as mock_agent_class:
                 mock_agent = MagicMock()
                 mock_agent_class.return_value = mock_agent
 
@@ -386,18 +428,24 @@ class TestAgentSkillStructure:
         """All skills should have id, name, description, tags, examples."""
         with patch("examples.agents.weather_agent.create_sdk_mcp_server"):
             with patch("examples.agents.maps_agent.create_sdk_mcp_server"):
-                with patch("examples.agents.controller_agent.create_a2a_transport_server"):
+                with patch(
+                    "examples.agents.controller_agent.create_a2a_transport_server"
+                ):
                     with patch(
-                        "examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None
+                        "examples.agents.weather_agent.BaseA2AAgent.__init__",
+                        return_value=None,
                     ):
                         with patch(
-                            "examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None
+                            "examples.agents.maps_agent.BaseA2AAgent.__init__",
+                            return_value=None,
                         ):
                             with patch(
                                 "examples.agents.controller_agent.BaseA2AAgent.__init__",
                                 return_value=None,
                             ):
-                                from examples.agents.controller_agent import ControllerAgent
+                                from examples.agents.controller_agent import (
+                                    ControllerAgent,
+                                )
                                 from examples.agents.maps_agent import MapsAgent
                                 from examples.agents.weather_agent import WeatherAgent
 
@@ -425,18 +473,24 @@ class TestAgentSkillStructure:
         """Skill IDs should be unique within each agent."""
         with patch("examples.agents.weather_agent.create_sdk_mcp_server"):
             with patch("examples.agents.maps_agent.create_sdk_mcp_server"):
-                with patch("examples.agents.controller_agent.create_a2a_transport_server"):
+                with patch(
+                    "examples.agents.controller_agent.create_a2a_transport_server"
+                ):
                     with patch(
-                        "examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None
+                        "examples.agents.weather_agent.BaseA2AAgent.__init__",
+                        return_value=None,
                     ):
                         with patch(
-                            "examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None
+                            "examples.agents.maps_agent.BaseA2AAgent.__init__",
+                            return_value=None,
                         ):
                             with patch(
                                 "examples.agents.controller_agent.BaseA2AAgent.__init__",
                                 return_value=None,
                             ):
-                                from examples.agents.controller_agent import ControllerAgent
+                                from examples.agents.controller_agent import (
+                                    ControllerAgent,
+                                )
                                 from examples.agents.maps_agent import MapsAgent
                                 from examples.agents.weather_agent import WeatherAgent
 
@@ -461,18 +515,24 @@ class TestAgentToolNaming:
         """Tool names should follow mcp__<server>__<tool> pattern."""
         with patch("examples.agents.weather_agent.create_sdk_mcp_server"):
             with patch("examples.agents.maps_agent.create_sdk_mcp_server"):
-                with patch("examples.agents.controller_agent.create_a2a_transport_server"):
+                with patch(
+                    "examples.agents.controller_agent.create_a2a_transport_server"
+                ):
                     with patch(
-                        "examples.agents.weather_agent.BaseA2AAgent.__init__", return_value=None
+                        "examples.agents.weather_agent.BaseA2AAgent.__init__",
+                        return_value=None,
                     ):
                         with patch(
-                            "examples.agents.maps_agent.BaseA2AAgent.__init__", return_value=None
+                            "examples.agents.maps_agent.BaseA2AAgent.__init__",
+                            return_value=None,
                         ):
                             with patch(
                                 "examples.agents.controller_agent.BaseA2AAgent.__init__",
                                 return_value=None,
                             ):
-                                from examples.agents.controller_agent import ControllerAgent
+                                from examples.agents.controller_agent import (
+                                    ControllerAgent,
+                                )
                                 from examples.agents.maps_agent import MapsAgent
                                 from examples.agents.weather_agent import WeatherAgent
 

@@ -157,10 +157,10 @@ class TopologyConfig(BaseModel):
 class HealthCheckConfig(BaseModel):
     """Health check configuration."""
 
-    enabled: bool = Field(True, description="Enable health checks")
-    interval: int = Field(5, description="Check interval in seconds")
-    retries: int = Field(3, description="Number of retries before failure")
-    timeout: int = Field(5, description="Timeout per check in seconds")
+    enabled: bool = True
+    interval: int = 5
+    retries: int = 3
+    timeout: int = 5
 
 
 class SSHConfig(BaseModel):
@@ -182,15 +182,11 @@ class NetworkConfig(BaseModel):
 class DeploymentConfig(BaseModel):
     """Deployment strategy configuration."""
 
-    strategy: Literal["sequential", "parallel", "staged"] = Field(
-        "staged", description="Deployment strategy"
-    )
-    timeout: int = Field(60, description="Deployment timeout in seconds")
-    health_check: HealthCheckConfig = Field(
-        default_factory=HealthCheckConfig, description="Health check configuration"
-    )
-    ssh: SSHConfig | None = Field(None, description="SSH configuration")
-    network: NetworkConfig | None = Field(None, description="Network configuration")
+    strategy: Literal["sequential", "parallel", "staged"] = "staged"
+    timeout: int = 60
+    health_check: HealthCheckConfig = Field(default_factory=HealthCheckConfig)
+    ssh: SSHConfig | None = None
+    network: NetworkConfig | None = None
 
 
 # ============================================================================
@@ -216,15 +212,9 @@ class JobDefinition(BaseModel):
     job: JobMetadata = Field(..., description="Job metadata")
     agents: list[AgentConfig] = Field(..., description="Agent definitions")
     topology: TopologyConfig = Field(..., description="Network topology")
-    deployment: DeploymentConfig = Field(
-        default_factory=DeploymentConfig, description="Deployment configuration"
-    )
-    execution: ExecutionConfig | None = Field(
-        None, description="Execution configuration"
-    )
-    environment: dict[str, str] | None = Field(
-        default_factory=dict, description="Global environment variables"
-    )
+    deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
+    execution: ExecutionConfig | None = None
+    environment: dict[str, str] = Field(default_factory=dict)
 
     @field_validator("agents")
     @classmethod

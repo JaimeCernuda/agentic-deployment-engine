@@ -128,8 +128,8 @@ class TestVerifyApiKeySync:
 
     def test_returns_true_for_valid_key(self) -> None:
         """Should return True for matching key."""
-        from src.security.auth import verify_api_key_sync
         from src.config import AgentSettings
+        from src.security.auth import verify_api_key_sync
 
         mock_settings = AgentSettings(auth_required=True, api_key="correct-key")
         with patch("src.security.auth.settings", mock_settings):

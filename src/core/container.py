@@ -162,10 +162,6 @@ class Container:
             from ..backends.gemini_cli import GeminiCLIBackend
 
             return GeminiCLIBackend(config)
-        elif backend_type == "opencode":
-            from ..backends.opencode import OpenCodeBackend
-
-            return OpenCodeBackend(config)
         else:
             raise ValueError(f"Unknown backend type: {backend_type}")
 

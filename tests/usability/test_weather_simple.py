@@ -12,7 +12,6 @@ pytestmark = [pytest.mark.usability, pytest.mark.slow]
 sys.path.insert(0, str(Path(__file__).parent))
 
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient, create_sdk_mcp_server
-
 from tools.weather_tools import get_locations, get_weather
 
 # Track tool calls

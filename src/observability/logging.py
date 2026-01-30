@@ -8,6 +8,7 @@ import json
 import logging
 import os
 import sys
+from collections.abc import MutableMapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -40,16 +41,18 @@ class JSONFormatter(logging.Formatter):
         }
 
         # Add extra fields if present
-        if hasattr(record, "extra") and record.extra:
-            log_record["extra"] = record.extra
+        extra = getattr(record, "extra", None)
+        if extra:
+            log_record["extra"] = extra
 
         # Add exception info if present
         if record.exc_info:
             log_record["exception"] = self.formatException(record.exc_info)
 
         # Add correlation ID if available (for distributed tracing)
-        if hasattr(record, "correlation_id"):
-            log_record["correlation_id"] = record.correlation_id
+        correlation_id = getattr(record, "correlation_id", None)
+        if correlation_id is not None:
+            log_record["correlation_id"] = correlation_id
 
         return json.dumps(log_record, default=str)
 
@@ -174,7 +177,9 @@ class LoggerAdapter(logging.LoggerAdapter):
         """
         super().__init__(logger, {"correlation_id": correlation_id})
 
-    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    def process(
+        self, msg: str, kwargs: MutableMapping[str, Any]
+    ) -> tuple[str, MutableMapping[str, Any]]:
         """Add correlation ID to log record.
 
         Args:
@@ -185,6 +190,7 @@ class LoggerAdapter(logging.LoggerAdapter):
             Processed message and kwargs.
         """
         extra = kwargs.get("extra", {})
-        extra["correlation_id"] = self.extra["correlation_id"]
+        if self.extra is not None:
+            extra["correlation_id"] = self.extra.get("correlation_id")
         kwargs["extra"] = extra
         return msg, kwargs

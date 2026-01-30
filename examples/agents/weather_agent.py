@@ -4,10 +4,9 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server
 
+from examples.tools.weather_tools import get_locations, get_weather
 from src import BaseA2AAgent
 from src.security import PermissionPreset
-
-from examples.tools.weather_tools import get_locations, get_weather
 
 
 class WeatherAgent(BaseA2AAgent):

@@ -16,7 +16,7 @@ agents:
   # Weather service agent
   - id: weather
     type: WeatherAgent
-    module: agents.weather_agent
+    module: examples.agents.weather_agent
     config:
       port: 9001
       name: Weather Agent
@@ -29,7 +29,7 @@ agents:
   # Maps service agent
   - id: maps
     type: MapsAgent
-    module: agents.maps_agent
+    module: examples.agents.maps_agent
     config:
       port: 9002
       name: Maps Agent
@@ -42,7 +42,7 @@ agents:
   # Coordinator agent
   - id: controller
     type: ControllerAgent
-    module: agents.controller_agent
+    module: examples.agents.controller_agent
     config:
       port: 9000
       name: Controller Agent

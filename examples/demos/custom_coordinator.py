@@ -8,8 +8,8 @@ that can connect to any set of agents without hardcoding their capabilities.
 
 from typing import Any
 
-from src.a2a_transport import create_a2a_transport_server
-from src.base_a2a_agent import BaseA2AAgent
+from src.agents.base import BaseA2AAgent
+from src.agents.transport import create_a2a_transport_server
 
 
 class CustomCoordinator(BaseA2AAgent):
@@ -24,7 +24,7 @@ class CustomCoordinator(BaseA2AAgent):
         self,
         name: str = "Custom Coordinator",
         port: int = 9000,
-        agent_urls: list[str] = None,
+        agent_urls: list[str] | None = None,
     ):
         """
         Initialize a custom coordinator.

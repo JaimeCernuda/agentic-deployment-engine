@@ -334,8 +334,9 @@ def shutdown_telemetry() -> None:
         from opentelemetry import trace
 
         provider = trace.get_tracer_provider()
-        if hasattr(provider, "shutdown"):
-            provider.shutdown()
+        shutdown_fn = getattr(provider, "shutdown", None)
+        if shutdown_fn is not None:
+            shutdown_fn()
             logger.info("Telemetry shutdown complete")
     except Exception as e:
         logger.error(f"Error during telemetry shutdown: {e}")

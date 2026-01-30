@@ -1,319 +1,159 @@
-# Agentic Deployment Engine
+# Agentic deployment engine
 
-A sophisticated multi-agent deployment framework that combines Claude Agent SDK with MCP integration, Agent-to-Agent (A2A) transport, and declarative job orchestration for building and deploying distributed agent systems.
+A multi-agent deployment framework using Claude Agent SDK with MCP integration and declarative job orchestration.
 
-## Overview
+## Features
 
-The Agentic Deployment Engine makes it easy to build, configure, and deploy complex multi-agent systems with:
+- **SDK MCP A2A transport** - Efficient in-process agent communication (10-100x faster than subprocess)
+- **Dynamic agent discovery** - Automatic capability detection via A2A protocol
+- **Declarative job definitions** - Define complex topologies in YAML
+- **Multi-target deployment** - Deploy to localhost, SSH, Docker, or Kubernetes
+- **Multiple topology patterns** - Hub-spoke, pipeline, mesh, DAG, hierarchical
 
-- **SDK MCP A2A Transport**: Efficient HTTP-based agent communication via SDK MCP tools
-- **Dynamic Agent Discovery**: Automatic agent discovery and capability detection at runtime
-- **Declarative Job Definitions**: Define complex agent topologies in YAML without code changes
-- **Multi-Target Deployment**: Deploy to localhost, SSH remote hosts, containers, and Kubernetes
-- **Multiple Topology Patterns**: Hub-spoke, pipeline, DAG, mesh, and hierarchical architectures
-
-## Key Features
-
-- **In-Process MCP SDK Tools**: 10-100x faster than subprocess MCP servers
-- **BaseA2AAgent Framework**: Inheritance-based agent development with built-in A2A capabilities
-- **Topology Resolver**: Automatic conversion of patterns to deployment plans
-- **Health Monitoring**: Built-in health checks and connectivity validation
-- **Connection Resolution**: Automatic URL resolution based on deployment topology
-- **Agent Registry**: Runtime service discovery with caching
-
-## Quick Start
+## Quick start
 
 ### Installation
 
 ```bash
-# Install dependencies
 uv sync
 ```
 
-### Running Agents Manually
+### Run agents
 
 ```bash
-# Terminal 1: Start weather agent
-uv run weather-agent
-
-# Terminal 2: Start maps agent
-uv run maps-agent
-
-# Terminal 3: Start controller agent
-uv run controller-agent
-
-# Or start all at once
+# Start all example agents
 uv run start-all
+
+# Or individually
+uv run weather-agent      # Port 9001
+uv run maps-agent         # Port 9002
+uv run controller-agent   # Port 9000
 ```
 
-### Deploying with Jobs System
+### Deploy a job
 
 ```bash
-# Validate a job definition
-uv run deploy validate jobs/examples/simple-weather.yaml
-
-# View deployment plan (dry run)
-uv run deploy plan jobs/examples/simple-weather.yaml
-
-# Deploy and run the job
-uv run deploy start jobs/examples/simple-weather.yaml
+uv run deploy start examples/jobs/simple-weather.yaml
 ```
 
-## Architecture
+### Query an agent
 
-```
-┌─────────────────────────────────────────────────────────┐
-│              Application Layer (Agents)                 │
-│  WeatherAgent, MapsAgent, ControllerAgent              │
-│  - Inherit from BaseA2AAgent                            │
-│  - Define skills and tools                              │
-└────────────────────────┬────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────┐
-│         A2A Framework & Agent Infrastructure            │
-│  - BaseA2AAgent: FastAPI + A2A endpoints                │
-│  - SDK MCP A2A Transport: query_agent, discover_agent   │
-│  - Agent Registry: Dynamic discovery & caching          │
-└────────────────────────┬────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────┐
-│           Job Deployment System (src/jobs)              │
-│  - JobDefinition: Comprehensive validation              │
-│  - TopologyResolver: Pattern to deployment conversion   │
-│  - AgentDeployer: Multi-target orchestration            │
-│  - Runners: Local, SSH, Docker, Kubernetes              │
-└─────────────────────────────────────────────────────────┘
+```bash
+curl -X POST http://localhost:9000/query \
+  -H "Content-Type: application/json" \
+  -d '{"query": "What is the weather in Tokyo?"}'
 ```
 
-### Example: Hub-and-Spoke Topology
-
-```
-         Controller (port 9000)
-               ↙        ↘
-    Weather Agent    Maps Agent
-    (port 9001)      (port 9002)
-```
-
-Controller coordinates weather and maps agents via A2A protocol using SDK MCP tools for efficient HTTP-based communication.
-
-## Topology Patterns
-
-### 1. Hub-and-Spoke
-Central coordinator with specialized workers. Spokes deploy first (parallel), then hub deploys.
-
-**Example**: `jobs/examples/simple-weather.yaml`
-
-### 2. Pipeline
-Sequential processing stages, each connects to next.
-
-**Example**: `jobs/examples/pipeline.yaml`
-
-### 3. DAG (Directed Acyclic Graph)
-Parallel branches with convergence points. Topological sort determines deployment order.
-
-**Example**: `jobs/examples/distributed-dag.yaml`
-
-### 4. Full Mesh
-All agents connect to all others for peer-to-peer collaboration.
-
-**Example**: `jobs/examples/collaborative-mesh.yaml`
-
-### 5. Hierarchical Tree
-Multi-level organization with root-to-leaf connections.
-
-**Example**: `jobs/examples/hierarchical-tree.yaml`
-
-## Project Structure
+## Project structure
 
 ```
 agentic-deployment-engine/
-├── agents/                      # Agent implementations
-│   ├── weather_agent.py         # Weather service agent
-│   ├── maps_agent.py            # Maps/distance calculation agent
-│   └── controller_agent.py      # Coordinator agent
-├── src/
-│   ├── base_a2a_agent.py        # Base A2A agent class
-│   ├── a2a_transport.py         # SDK MCP A2A transport tools
-│   ├── agent_registry.py        # Dynamic agent discovery
-│   └── jobs/                    # Job deployment system
-│       ├── models.py            # Job definition models
-│       ├── loader.py            # YAML job loader
-│       ├── resolver.py          # Topology resolver
-│       ├── deployer.py          # Agent deployer
-│       └── cli.py               # CLI interface
-├── tools/
-│   ├── weather_tools.py         # Weather MCP tools
-│   └── maps_tools.py            # Maps MCP tools
-├── jobs/
-│   ├── examples/                # Example job definitions
-│   │   ├── simple-weather.yaml
-│   │   ├── pipeline.yaml
-│   │   ├── distributed-dag.yaml
-│   │   ├── collaborative-mesh.yaml
-│   │   └── hierarchical-tree.yaml
-│   └── README.md                # Jobs system documentation
-├── tests/                       # Test suite
-├── scripts/                     # Utility scripts
-├── examples/                    # Example code
-├── docs/                        # Documentation
-└── pyproject.toml              # Project configuration
+├── src/                    # Core framework
+│   ├── agents/             # Agent base classes and transport
+│   ├── backends/           # LLM backends (Claude, Gemini, CrewAI)
+│   ├── core/               # Types, exceptions, container
+│   ├── jobs/               # Job deployment system
+│   ├── security/           # Auth and permissions
+│   └── observability/      # Logging and telemetry
+├── examples/               # Example implementations
+│   ├── agents/             # Weather, Maps, Controller agents
+│   ├── tools/              # MCP tools
+│   ├── jobs/               # Job YAML definitions
+│   └── demos/              # Demo scripts
+├── tests/                  # Test suite
+│   ├── unit/               # Fast, mocked tests
+│   ├── integration/        # Component coordination
+│   └── usability/          # End-to-end validation
+└── docs/                   # Documentation
 ```
 
-## Available Agents
+## Documentation
 
-### WeatherAgent (port 9001)
-Provides weather information for cities.
+- [Getting started](docs/getting-started.md) - Installation and first steps
+- [Building agents](docs/building-agents.md) - Create custom agents
+- [Architecture](docs/architecture.md) - System design and patterns
+- [Configuration](docs/configuration.md) - Settings reference
+- [Job definitions](docs/job-definitions.md) - YAML job format
+- [SSH deployment](docs/ssh-deployment.md) - Remote deployment
+- [Security](docs/security.md) - Authentication and permissions
+- [Testing](docs/testing.md) - Running and writing tests
+- [MCP transport](docs/mcp-transport.md) - Transport internals
+- [Troubleshooting](docs/troubleshooting.md) - Common issues
 
-**Skills**: Weather analysis, location lookup
-**Tools**: `get_weather`, `get_locations`
+## Topology patterns
 
-### MapsAgent (port 9002)
-Calculates distances between cities using haversine formula.
-
-**Skills**: Distance calculation, city listing
-**Tools**: `get_distance`, `get_cities`
-
-### ControllerAgent (port 9000)
-Coordinates multi-agent queries and orchestrates workflows.
-
-**Skills**: Agent coordination, query routing
-**Tools**: `query_agent`, `discover_agent` (A2A transport)
-
-## Creating Custom Agents
-
-Extend `BaseA2AAgent` to create new agents:
-
-```python
-from src.base_a2a_agent import BaseA2AAgent
-
-class MyAgent(BaseA2AAgent):
-    def _get_skills(self) -> str:
-        return "Describe agent capabilities"
-
-    def _get_allowed_tools(self) -> list[str]:
-        return ["mcp__my_server__my_tool"]
+### Hub-and-spoke
+Central coordinator with specialized workers.
+```
+         Controller
+         /   |   \
+    Weather Maps Database
 ```
 
-See `docs/AGENT_BUILDER_GUIDE.md` for detailed guide.
-
-## Deployment Targets
-
-### Localhost
-```yaml
-deployment:
-  target: localhost
+### Pipeline
+Sequential processing stages.
+```
+Intake → Process → Validate → Output
 ```
 
-### Remote SSH
-```yaml
-deployment:
-  target: remote
-  ssh:
-    host: remote.example.com
-    user: deploy
-    key_path: ~/.ssh/id_rsa
+### Mesh
+All agents connect to all others.
+```
+  1 ←→ 2
+  ↕ ╲╱ ↕
+  4 ←→ 3
 ```
 
-### Docker Container
-```yaml
-deployment:
-  target: container
-  container:
-    image: my-agent:latest
+### DAG
+Directed acyclic graph with parallel branches.
+```
+       ┌─ Branch-A ─┐
+Source ─┤            ├─ Merge
+       └─ Branch-B ─┘
 ```
 
-### Kubernetes
-```yaml
-deployment:
-  target: kubernetes
-  kubernetes:
-    namespace: agents
-    service_type: ClusterIP
+### Hierarchical
+Multi-level tree organization.
+```
+         Root
+        /    \
+    VP-Eng  VP-Sales
+    /    \
+ Team-A  Team-B
 ```
 
 ## Testing
 
 ```bash
 # Run all tests
-pytest tests/ -v
+uv run pytest tests/ -v
 
-# Run specific test suite
-pytest tests/test_system.py -v
+# By category
+uv run pytest tests/unit/ -v
+uv run pytest tests/integration/ -v
+uv run pytest tests/usability/ -v
 
-# Run integration tests
-uv run test-system
+# With coverage
+uv run pytest tests/ --cov=src
 ```
 
-## CLI Commands
+## CLI commands
 
 ```bash
-# Validate job definition
-uv run deploy validate <job.yaml>
-
-# Generate deployment plan
-uv run deploy plan <job.yaml>
-
-# Start job
-uv run deploy start <job.yaml>
-
-# View job status (placeholder)
-uv run deploy status <job-name>
-
-# Stop job (placeholder)
-uv run deploy stop <job-name>
-
-# View logs (placeholder)
-uv run deploy logs <job-name>
-
-# List all jobs (placeholder)
-uv run deploy list
-```
-
-## Documentation
-
-- **[Architecture Upgrade](docs/ARCHITECTURE_UPGRADE.md)**: Technical details of SDK MCP A2A implementation
-- **[Jobs System](jobs/README.md)**: Complete jobs system documentation
-- **[Job Specification](jobs/JOB_SPECIFICATION.md)**: Job definition format reference
-- **[Agent Builder Guide](docs/AGENT_BUILDER_GUIDE.md)**: Creating custom agents
-- **[SSH Deployment](jobs/SSH_DEPLOYMENT_GUIDE.md)**: Remote SSH deployment guide
-- **[Multi-Agent Architectures](docs/MULTI_AGENT_ARCHITECTURES.md)**: Architecture patterns reference
-
-## Example Workflow
-
-1. **Define a job** in YAML with agents and topology
-2. **Validate** the job definition: `uv run deploy validate job.yaml`
-3. **Review** the deployment plan: `uv run deploy plan job.yaml`
-4. **Deploy** the system: `uv run deploy start job.yaml`
-5. **Query** agents via their HTTP endpoints
-
-### Example Query
-
-```bash
-# Query the controller agent
-curl -X POST http://localhost:9000/query \
-  -H "Content-Type: application/json" \
-  -d '{"query": "What is the weather in Tokyo and how far is it from London?"}'
+uv run deploy validate <job.yaml>   # Validate job definition
+uv run deploy plan <job.yaml>       # Preview deployment plan
+uv run deploy start <job.yaml>      # Deploy and run
 ```
 
 ## Dependencies
 
-- Python 3.10+
-- FastAPI (web framework)
-- Uvicorn (ASGI server)
+- Python 3.11+
 - Claude Agent SDK (main branch)
-- httpx (async HTTP client)
-- Pydantic (data validation)
-- typer + rich (CLI)
+- FastAPI + Uvicorn
+- Pydantic
+- httpx
 - paramiko (SSH deployment)
-
-## Contributing
-
-This is a research/demo project showcasing multi-agent deployment patterns with Claude Agent SDK and MCP integration.
 
 ## License
 
-See LICENSE file for details.
-
-## Support
-
-For issues and questions, please refer to the documentation in the `docs/` directory or review example job definitions in `jobs/examples/`.
+See LICENSE file.

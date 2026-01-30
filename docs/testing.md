@@ -1,10 +1,33 @@
-# Usability Tests Documentation
+# Testing
 
-This document describes all usability tests, their purpose, inputs/outputs, how to reproduce them, and where to find logs.
+This guide covers the test suite structure, how to run tests, and how to write new tests.
 
 ## Overview
 
-The usability tests are located in `tests/usability/` and verify real-world functionality of the multi-agent deployment system. These tests go beyond unit tests to validate actual user workflows.
+Tests are organized into three categories:
+
+| Directory | Purpose | Speed |
+|-----------|---------|-------|
+| `tests/unit/` | Isolated component tests with mocks | Fast |
+| `tests/integration/` | Component coordination tests | Medium |
+| `tests/usability/` | End-to-end user workflow tests | Slow |
+
+## Running tests
+
+```bash
+# Run all tests
+uv run pytest tests/ -v
+
+# Run by category
+uv run pytest tests/unit/ -v          # Fast, mocked
+uv run pytest tests/integration/ -v   # Component coordination
+uv run pytest tests/usability/ -v     # End-to-end
+
+# Run with coverage
+uv run pytest tests/ --cov=src --cov-report=term-missing
+```
+
+## Test structure
 
 ## Log Locations
 
@@ -184,7 +207,7 @@ uv run pytest tests/usability/test_ssh_deployment.py -v
 uv run python tests/usability/test_ssh_deployment.py
 ```
 
-**Input**: Job file `jobs/examples/ssh-localhost.yaml`
+**Input**: Job file `examples/jobs/ssh-localhost.yaml`
 
 **Expected Output**:
 ```

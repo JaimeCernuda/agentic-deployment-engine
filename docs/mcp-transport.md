@@ -1,5 +1,6 @@
-# MCP SDK Transport Deep Dive
-## Understanding In-Process MCP Tools vs Traditional Subprocess MCP Servers
+# MCP transport
+
+Understanding in-process MCP tools vs traditional subprocess MCP servers.
 
 This document explains how the MCP SDK transport mechanism works, what it does, and how it compares to traditional stdio MCP and subprocess MCP implementations.
 
@@ -636,9 +637,9 @@ The best part? You can use **both together**, getting the performance of SDK MCP
 
 ---
 
-## Further Reading
+## See also
 
-- **Claude Agent SDK Docs**: https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-python
-- **MCP Specification**: https://modelcontextprotocol.io/
-- **Agentic Development Guide**: `docs/agentic_development_guide.md`
-- **Demo Logs**: `logs/demo_multi_agent/README.md`
+- [Building agents](building-agents.md) - Agent creation guide
+- [Architecture](architecture.md) - System design patterns
+- [Claude Agent SDK Docs](https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-python)
+- [MCP Specification](https://modelcontextprotocol.io/)

@@ -1,6 +1,6 @@
-# Multi-Agent Architecture Patterns
+# Architecture
 
-This document explores different architectural patterns for multi-agent systems, with specific analysis for the clean_mcp_a2a project.
+This document explores different architectural patterns for multi-agent systems.
 
 ## Table of Contents
 1. [Hub-and-Spoke (Current)](#1-hub-and-spoke-star-current)
@@ -590,15 +590,16 @@ graph TB
 
 ---
 
-## 10. Recommendations for clean_mcp_a2a
+## 10. Recommendations
 
-### Current State
-You have a well-implemented **Hub-and-Spoke** architecture that works well for:
+### Current state
+
+The default **Hub-and-Spoke** architecture works well for:
 - Small number of specialized agents (2-5)
 - Coordinated multi-agent queries
 - Clear separation of concerns
 
-### Evolution Path
+### Evolution path
 
 #### Short-term (Keep Hub-and-Spoke)
 **When:**
@@ -647,7 +648,7 @@ graph LR
 
 ## 11. Implementation Considerations
 
-### For Your Current SDK
+### SDK support
 ```python
 # Your SDK supports all these patterns via:
 

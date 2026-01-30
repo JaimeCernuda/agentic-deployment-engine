@@ -13,8 +13,8 @@ from .exceptions import (
     ValidationError,
 )
 from .types import (
-    AgentCard,
     AgentCapabilities,
+    AgentCard,
     BackendQueryResult,
     HealthResponse,
     QueryContext,

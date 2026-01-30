@@ -403,7 +403,7 @@ class TestEdgeCases:
         """Coordinates should be numeric types suitable for math."""
         from examples.tools.maps_tools import CITY_COORDINATES
 
-        for city, coords in CITY_COORDINATES.items():
+        for _city, coords in CITY_COORDINATES.items():
             lat = coords["lat"]
             lon = coords["lon"]
 

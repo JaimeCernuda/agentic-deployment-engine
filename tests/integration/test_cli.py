@@ -461,19 +461,34 @@ class TestStopCommand:
 
     def test_stop_running_job_kills_processes(self, mock_job_state: JobState) -> None:
         """Stop should kill running agent processes."""
-        with (
-            patch("src.jobs.cli.get_registry") as mock_get_registry,
-            patch("os.kill") as mock_kill,
-        ):
-            mock_registry = MagicMock()
-            mock_registry.get_job.return_value = mock_job_state
-            mock_get_registry.return_value = mock_registry
+        # On Windows, os.system("taskkill") is used; on Unix, os.kill() is used
+        if sys.platform == "win32":
+            with (
+                patch("src.jobs.cli.get_registry") as mock_get_registry,
+                patch("os.system") as mock_system,
+            ):
+                mock_registry = MagicMock()
+                mock_registry.get_job.return_value = mock_job_state
+                mock_get_registry.return_value = mock_registry
+                mock_system.return_value = 0  # taskkill success
 
-            result = runner.invoke(app, ["stop", "test-job"])
+                result = runner.invoke(app, ["stop", "test-job"])
 
-            assert result.exit_code == 0
-            # os.kill should have been called with the agent PID
-            mock_kill.assert_called()
+                assert result.exit_code == 0
+                mock_system.assert_called()
+        else:
+            with (
+                patch("src.jobs.cli.get_registry") as mock_get_registry,
+                patch("os.kill") as mock_kill,
+            ):
+                mock_registry = MagicMock()
+                mock_registry.get_job.return_value = mock_job_state
+                mock_get_registry.return_value = mock_registry
+
+                result = runner.invoke(app, ["stop", "test-job"])
+
+                assert result.exit_code == 0
+                mock_kill.assert_called()
 
     @pytest.mark.skipif(
         sys.platform == "win32", reason="SIGKILL not available on Windows"
@@ -496,6 +511,10 @@ class TestStopCommand:
             # Should have used SIGKILL
             mock_kill.assert_called_with(12345, signal.SIGKILL)
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="ProcessLookupError from os.kill not applicable on Windows",
+    )
     def test_stop_handles_process_not_found(self, mock_job_state: JobState) -> None:
         """Stop should handle ProcessLookupError gracefully."""
         with (
@@ -512,6 +531,10 @@ class TestStopCommand:
             assert result.exit_code == 0
             assert "already stopped" in result.stdout.lower()
 
+    @pytest.mark.skipif(
+        sys.platform == "win32",
+        reason="PermissionError from os.kill not applicable on Windows",
+    )
     def test_stop_handles_permission_error(self, mock_job_state: JobState) -> None:
         """Stop should handle PermissionError gracefully."""
         with (

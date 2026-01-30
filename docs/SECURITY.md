@@ -1,6 +1,6 @@
-# Security Documentation
+# Security
 
-This document describes the security features, configurations, and best practices for the Agentic Deployment Engine.
+Security features, configurations, and best practices for the Agentic Deployment Engine.
 
 ## Authentication
 
@@ -70,7 +70,7 @@ By default, the following are blocked:
 All outbound URLs are validated before requests are made:
 
 ```python
-from src.auth import validate_url
+from src.security.auth import validate_url
 
 # Raises ValueError if URL is not allowed
 validate_url("https://api.example.com/data")
@@ -124,7 +124,7 @@ If passwords must be used:
 User inputs are sanitized before being processed by agents:
 
 ```python
-from src.auth import sanitize_prompt
+from src.security.auth import sanitize_prompt
 
 # Removes potentially dangerous patterns
 safe_input = sanitize_prompt(user_input)

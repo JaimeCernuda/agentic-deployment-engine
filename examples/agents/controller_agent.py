@@ -19,7 +19,7 @@ class ControllerAgent(BaseA2AAgent):
     def __init__(
         self,
         port: int = 9000,
-        connected_agents: list[str] = None,
+        connected_agents: list[str] | None = None,
         permission_preset: PermissionPreset = PermissionPreset.FULL_ACCESS,
     ):
         # Default to Weather and Maps agents if not specified

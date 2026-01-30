@@ -4,10 +4,9 @@ from typing import Any
 
 from claude_agent_sdk import create_sdk_mcp_server
 
+from examples.tools.maps_tools import get_cities, get_distance
 from src import BaseA2AAgent
 from src.security import PermissionPreset
-
-from examples.tools.maps_tools import get_cities, get_distance
 
 
 class MapsAgent(BaseA2AAgent):

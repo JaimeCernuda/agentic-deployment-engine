@@ -118,11 +118,13 @@ class ClaudeSDKBackend(AgentBackend):
             async for message in client.receive_response():
                 message_count += 1
 
-                if hasattr(message, "content"):
-                    for block in message.content:
-                        if hasattr(block, "text"):
-                            response += block.text
-                        if hasattr(block, "name"):
+                content = getattr(message, "content", None)
+                if content is not None:
+                    for block in content:
+                        text = getattr(block, "text", None)
+                        if text is not None:
+                            response += text
+                        if getattr(block, "name", None) is not None:
                             tool_count += 1
 
             logger.debug(

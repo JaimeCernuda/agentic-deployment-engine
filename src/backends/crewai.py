@@ -71,9 +71,9 @@ class CrewAIBackend(AgentBackend):
             ) from e
 
         # Verify Ollama is running
-        try:
-            import httpx
+        import httpx
 
+        try:
             async with httpx.AsyncClient() as client:
                 response = await asyncio.wait_for(
                     client.get(f"{self.ollama_base_url}/api/tags"),
@@ -142,19 +142,24 @@ class CrewAIBackend(AgentBackend):
         """
         await self.initialize()
 
+        if self._agent is None:
+            raise AgentBackendError(self.name, "CrewAI agent not initialized")
+
         try:
             from crewai import Crew, Task
+
+            agent = self._agent  # Local var for type narrowing
 
             # Create a task for this query
             task = Task(
                 description=prompt,
                 expected_output="A helpful response to the user's query",
-                agent=self._agent,
+                agent=agent,
             )
 
             # Create a temporary crew with just this task
             crew = Crew(
-                agents=[self._agent],
+                agents=[agent],
                 tasks=[task],
                 verbose=False,
             )

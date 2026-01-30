@@ -15,7 +15,7 @@ agents:
   # Weather service via SSH to localhost
   - id: weather
     type: WeatherAgent
-    module: agents.weather_agent
+    module: examples.agents.weather_agent
     config:
       port: 9101
       name: Weather Agent (SSH)
@@ -33,7 +33,7 @@ agents:
   # Maps service via SSH to localhost
   - id: maps
     type: MapsAgent
-    module: agents.maps_agent
+    module: examples.agents.maps_agent
     config:
       port: 9102
       name: Maps Agent (SSH)
@@ -49,7 +49,7 @@ agents:
   # Controller locally (to coordinate remote agents)
   - id: controller
     type: ControllerAgent
-    module: agents.controller_agent
+    module: examples.agents.controller_agent
     config:
       port: 9100
       name: Controller Agent (Local)

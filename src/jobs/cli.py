@@ -69,7 +69,7 @@ def validate(
 
     except JobLoadError as e:
         console.print(f"[red][FAIL] Validation failed:[/red]\n{e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
 
 # ============================================================================
@@ -152,10 +152,10 @@ def plan(
 
     except JobLoadError as e:
         console.print(f"[red][FAIL] Validation failed:[/red]\n{e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
     except Exception as e:
         console.print(f"[red][FAIL] Planning failed:[/red]\n{e}")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
 
 # ============================================================================
@@ -239,13 +239,13 @@ def start(
 
         except JobLoadError as e:
             console.print(f"[red][FAIL] Validation failed:[/red]\n{e}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         except DeploymentError as e:
             console.print(f"[red][FAIL] Deployment failed:[/red]\n{e}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
         except Exception as e:
             console.print(f"[red][FAIL] Error:[/red]\n{e}")
-            raise typer.Exit(code=1)
+            raise typer.Exit(code=1) from None
 
     asyncio.run(_deploy())
 
@@ -266,7 +266,7 @@ def status(
     if not job_state:
         console.print(f"[red][FAIL] Job not found: {job_name}[/red]")
         console.print("[dim]Use 'uv run deploy list' to see all jobs[/dim]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     # Job info panel
     status_color = {
@@ -344,7 +344,7 @@ def stop(
 
     if not job_state:
         console.print(f"[red][FAIL] Job not found: {job_name}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     if job_state.status != "running":
         console.print(
@@ -361,9 +361,15 @@ def stop(
         if agent.process_id:
             try:
                 import os
+                import sys
 
-                sig = signal.SIGKILL if force else signal.SIGTERM
-                os.kill(agent.process_id, sig)
+                if sys.platform == "win32":
+                    # Windows: use taskkill
+                    os.system(f"taskkill /PID {agent.process_id} /F")
+                else:
+                    # Unix: use signals
+                    sig = signal.SIGKILL if force else signal.SIGTERM
+                    os.kill(agent.process_id, sig)
                 console.print(
                     f"  [green][OK][/green] Stopped {agent_id} (PID: {agent.process_id})"
                 )
@@ -467,7 +473,7 @@ def logs(
 
     if not job_state:
         console.print(f"[red][FAIL] Job not found: {job_name}[/red]")
-        raise typer.Exit(code=1)
+        raise typer.Exit(code=1) from None
 
     # Determine log directory
     log_dir = Path.cwd() / "logs" / "jobs"

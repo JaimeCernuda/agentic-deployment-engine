@@ -345,7 +345,7 @@ class TestAgentRegistry:
         cached_agent = AgentInfo("http://localhost:9001", {"name": "Cached"})
         registry._cache["http://localhost:9001"] = (cached_agent, time.monotonic())
 
-        with patch("httpx.AsyncClient") as mock_client_class:
+        with patch("httpx.AsyncClient") as _mock_client_class:
             mock_client = AsyncMock()
             registry._client = mock_client
 

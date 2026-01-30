@@ -16,8 +16,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.agents.transport import discover_agent, is_safe_url, query_agent
 from src.agents.registry import AgentRegistry
+from src.agents.transport import discover_agent, is_safe_url, query_agent
 
 # The @tool decorator wraps the function - get the actual handler
 query_agent_handler = query_agent.handler

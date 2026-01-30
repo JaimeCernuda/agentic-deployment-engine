@@ -4,11 +4,10 @@ Verifies that the backend factory correctly creates backends
 based on configuration and that each backend initializes properly.
 """
 
-import os
 import pytest
 
-from src.backends.base import BackendConfig
 from src.agents.base import create_backend
+from src.backends.base import BackendConfig
 
 pytestmark = [pytest.mark.usability]
 
@@ -20,8 +19,10 @@ class TestBackendFactory:
         """Default backend should be Claude SDK."""
         monkeypatch.setenv("AGENT_BACKEND_TYPE", "claude")
         # Force reload of settings
-        from src import config
         import importlib
+
+        from src import config
+
         importlib.reload(config)
 
         backend_config = BackendConfig(name="test", system_prompt="Test")
@@ -52,8 +53,10 @@ class TestBackendFactory:
     def test_unknown_backend_defaults_to_claude(self, monkeypatch):
         """Unknown backend type should fall back to Claude."""
         monkeypatch.setenv("AGENT_BACKEND_TYPE", "unknown_backend")
-        from src import config
         import importlib
+
+        from src import config
+
         importlib.reload(config)
 
         backend_config = BackendConfig(name="test", system_prompt="Test")

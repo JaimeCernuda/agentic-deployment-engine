@@ -196,9 +196,12 @@ class TestSignalHandling:
 
         assert hasattr(signal, "SIGINT")
 
-    def test_signal_handler_can_be_lambda(self) -> None:
-        """Signal handler can be a lambda."""
-        handler = lambda s, f: None
+    def test_signal_handler_can_be_callable(self) -> None:
+        """Signal handler can be a callable."""
+
+        def handler(s: int, f: object) -> None:
+            pass
+
         assert callable(handler)
 
 
