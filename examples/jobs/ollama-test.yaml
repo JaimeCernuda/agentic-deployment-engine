@@ -1,0 +1,50 @@
+# Ollama Backend Test Workflow
+# Tests the CrewAI/Ollama local LLM backend
+
+job:
+  name: ollama-test
+  version: 1.0.0
+  description: Test weather agent with local Ollama LLM
+  tags:
+    - testing
+    - ollama
+    - local-llm
+
+agents:
+  # Weather agent using Ollama backend
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+    deployment:
+      target: localhost
+      environment:
+        AGENT_BACKEND_TYPE: crewai
+        AGENT_OLLAMA_MODEL: llama3.2:latest
+        AGENT_OLLAMA_BASE_URL: http://localhost:11434
+
+  # Maps agent using Claude backend (for comparison)
+  - id: maps
+    type: MapsAgent
+    module: examples.agents.maps_agent
+    config:
+      port: 9002
+    deployment:
+      target: localhost
+      # No environment override - uses default claude backend
+
+# Mixed backends: weather on Ollama, maps on Claude
+topology:
+  type: hub-spoke
+  hub: weather
+  spokes:
+    - maps
+
+deployment:
+  strategy: sequential
+  timeout: 60  # Longer timeout for local LLM
+  health_check:
+    enabled: true
+    interval: 10
+    retries: 5
