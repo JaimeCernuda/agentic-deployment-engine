@@ -47,6 +47,7 @@ crewai = [
 weather-agent = "examples.agents.weather_agent:main"
 maps-agent = "examples.agents.maps_agent:main"
 controller-agent = "examples.agents.controller_agent:main"
+stock-agent = "examples.agents.stock_agent:main"
 # Start all agents
 start-all = "src.start_all:main"
 # Job deployment CLI

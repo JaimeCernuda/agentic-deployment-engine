@@ -1,0 +1,91 @@
+# Stock Market Workflow
+# Pattern: Hub-and-Spoke with Stock, Weather, and Maps agents
+# Use case: Financial analysis with contextual information
+
+job:
+  name: stock-workflow
+  version: 1.0.0
+  description: Stock market agent with weather and maps coordination
+  tags:
+    - stocks
+    - finance
+    - weather
+    - maps
+    - local
+
+agents:
+  # Stock market agent
+  - id: stock
+    type: StockAgent
+    module: examples.agents.stock_agent
+    config:
+      port: 9003
+      name: Stock Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Weather agent (useful for correlating weather with retail stocks)
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Maps agent (useful for location-based analysis)
+  - id: maps
+    type: MapsAgent
+    module: examples.agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Coordinator agent
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+# Hub-and-spoke topology
+# Controller connects to all specialized agents
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - stock
+    - weather
+    - maps
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 45
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+# Workflow execution
+execution:
+  entry_point: controller
+  auto_start: true
