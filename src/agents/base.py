@@ -176,10 +176,25 @@ class BaseA2AAgent(ABC):
                     self.logger.debug("SDK MCP server has list_tools method")
 
         allowed_tools = self._get_allowed_tools()
-        # Filter tools based on permission preset
+        # Permission presets control access to external tools (Read, Write, Bash, etc.)
+        # but should NOT filter out the agent's own MCP tools - those are core functionality.
+        # Agent's MCP tools follow the pattern: mcp__<server_name>__<tool_name>
         if permission_preset != PermissionPreset.FULL_ACCESS:
-            allowed_tools = filter_allowed_tools(
-                allowed_tools, permission_preset, custom_permission_rules
+            # Separate agent's own MCP tools from external tools
+            agent_mcp_tools = [t for t in allowed_tools if t.startswith("mcp__")]
+            external_tools = [t for t in allowed_tools if not t.startswith("mcp__")]
+
+            # Only filter external tools based on permission preset
+            filtered_external = filter_allowed_tools(
+                external_tools, permission_preset, custom_permission_rules
+            )
+
+            # Combine: agent's MCP tools (always allowed) + filtered external tools
+            allowed_tools = agent_mcp_tools + filtered_external
+            self.logger.debug(
+                f"Permission preset {permission_preset.value}: "
+                f"kept {len(agent_mcp_tools)} MCP tools, "
+                f"filtered external tools to {len(filtered_external)}"
             )
         self.logger.debug(f"Allowed tools: {allowed_tools}")
         self.logger.debug(f"Permission preset: {permission_preset.value}")

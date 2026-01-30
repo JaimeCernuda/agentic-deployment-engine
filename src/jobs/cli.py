@@ -2,8 +2,9 @@
 
 import asyncio
 import json
+import shutil
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -307,19 +308,23 @@ def status(
     table.add_column("Agent ID", style="cyan")
     table.add_column("URL", style="blue")
     table.add_column("PID", style="yellow")
-    table.add_column("Status", style="green")
     table.add_column("Health", style="magenta")
+    table.add_column("Host", style="dim")
 
-    async def check_health(url: str) -> str:
-        """Check agent health via HTTP."""
+    async def check_health(url: str) -> tuple[str, str]:
+        """Check agent health via HTTP.
+
+        Returns:
+            Tuple of (display_string, raw_status) for display and logic.
+        """
         try:
             async with httpx.AsyncClient(timeout=5.0) as client:
                 resp = await client.get(f"{url}/health")
                 if resp.status_code == 200:
-                    return "[green]healthy[/green]"
-                return f"[yellow]unhealthy ({resp.status_code})[/yellow]"
+                    return "[green]healthy[/green]", "healthy"
+                return f"[yellow]unhealthy ({resp.status_code})[/yellow]", "unhealthy"
         except Exception:
-            return "[red]unreachable[/red]"
+            return "[red]unreachable[/red]", "unreachable"
 
     async def get_all_health():
         """Get health for all agents."""
@@ -330,13 +335,19 @@ def status(
 
     health_results = asyncio.run(get_all_health())
 
+    # Count unhealthy agents for job status assessment
+    unhealthy_count = sum(
+        1 for _, (_, status) in health_results.items() if status != "healthy"
+    )
+
     for agent_id, agent in job_state.agents.items():
+        health_display, _ = health_results.get(agent_id, ("unknown", "unknown"))
         table.add_row(
             agent_id,
             agent.url,
             str(agent.process_id) if agent.process_id else "N/A",
-            agent.status,
-            health_results.get(agent_id, "unknown"),
+            health_display,
+            agent.host or "localhost",
         )
 
     console.print(table)
@@ -579,8 +590,8 @@ def logs(
         console.print(f"[red][FAIL] Job not found: {job_name}[/red]")
         raise typer.Exit(code=1) from None
 
-    # Determine log directory
-    log_dir = Path.cwd() / "logs" / "jobs"
+    # Determine log directory - use job_id for job-specific logs
+    log_dir = Path.cwd() / "logs" / "jobs" / job_state.job_id
 
     if agent:
         # Show logs for specific agent
@@ -621,6 +632,162 @@ def logs(
         console.print(
             "\n[yellow]Follow mode not yet implemented. Use 'tail -f' on log files.[/yellow]"
         )
+
+
+# ============================================================================
+# Cleanup Command
+# ============================================================================
+
+
+@app.command()
+def cleanup(
+    older_than: str = typer.Option(
+        "7d",
+        "--older-than",
+        "-o",
+        help="Remove jobs older than duration (e.g., 24h, 7d, 30d)",
+    ),
+    status: str | None = typer.Option(
+        "stopped",
+        "--status",
+        "-s",
+        help="Only remove jobs with this status (running, stopped, failed, or 'all')",
+    ),
+    job_id: str | None = typer.Argument(
+        None, help="Specific job ID to remove (ignores --older-than and --status)"
+    ),
+    dry_run: bool = typer.Option(
+        False, "--dry-run", "-n", help="Show what would be deleted without deleting"
+    ),
+    include_logs: bool = typer.Option(
+        True, "--logs/--no-logs", help="Also delete log files"
+    ),
+):
+    """Clean up old jobs and their logs.
+
+    Examples:
+        uv run deploy cleanup                    # Remove stopped jobs older than 7 days
+        uv run deploy cleanup --older-than 24h   # Remove stopped jobs older than 24 hours
+        uv run deploy cleanup --status all       # Remove all non-running jobs older than 7 days
+        uv run deploy cleanup my-job-id          # Remove specific job
+        uv run deploy cleanup --dry-run          # Preview what would be deleted
+    """
+    registry = get_registry()
+    logs_dir = Path.cwd() / "logs" / "jobs"
+
+    # Parse duration
+    def parse_duration(duration_str: str) -> timedelta:
+        """Parse duration string like '24h', '7d', '30d' to timedelta."""
+        duration_str = duration_str.strip().lower()
+        if duration_str.endswith("h"):
+            return timedelta(hours=int(duration_str[:-1]))
+        elif duration_str.endswith("d"):
+            return timedelta(days=int(duration_str[:-1]))
+        elif duration_str.endswith("w"):
+            return timedelta(weeks=int(duration_str[:-1]))
+        else:
+            # Default to days
+            return timedelta(days=int(duration_str))
+
+    jobs_to_delete: list[JobState] = []
+    log_dirs_to_delete: list[Path] = []
+
+    if job_id:
+        # Delete specific job
+        job = registry.get_job(job_id)
+        if not job:
+            console.print(f"[red][FAIL] Job not found: {job_id}[/red]")
+            raise typer.Exit(code=1) from None
+
+        if job.status == "running":
+            console.print(
+                f"[red][FAIL] Cannot delete running job. Stop it first with: "
+                f"uv run deploy stop {job_id}[/red]"
+            )
+            raise typer.Exit(code=1) from None
+
+        jobs_to_delete.append(job)
+
+        # Find matching log directories
+        for log_dir in logs_dir.glob(f"{job_id}*"):
+            if log_dir.is_dir():
+                log_dirs_to_delete.append(log_dir)
+
+    else:
+        # Delete jobs matching criteria
+        cutoff = datetime.now() - parse_duration(older_than)
+        all_jobs = registry.list_jobs(status=None, limit=1000)
+
+        for job in all_jobs:
+            # Skip running jobs unless explicitly requested
+            if job.status == "running":
+                continue
+
+            # Check status filter
+            if status and status != "all" and job.status != status:
+                continue
+
+            # Check age
+            try:
+                job_time = datetime.fromisoformat(job.start_time)
+                if job_time > cutoff:
+                    continue
+            except ValueError:
+                continue
+
+            jobs_to_delete.append(job)
+
+            # Find matching log directories
+            for log_dir in logs_dir.glob(f"{job.job_id}*"):
+                if log_dir.is_dir():
+                    log_dirs_to_delete.append(log_dir)
+
+    if not jobs_to_delete:
+        console.print("[dim]No jobs match the cleanup criteria[/dim]")
+        return
+
+    # Show what will be deleted
+    action = "Would delete" if dry_run else "Deleting"
+    console.print(f"\n[bold]{action} {len(jobs_to_delete)} job(s):[/bold]")
+
+    table = Table()
+    table.add_column("Job ID", style="cyan")
+    table.add_column("Status", style="yellow")
+    table.add_column("Started", style="dim")
+
+    for job in jobs_to_delete:
+        table.add_row(job.job_id, job.status, job.start_time[:19])
+
+    console.print(table)
+
+    if include_logs and log_dirs_to_delete:
+        console.print(f"\n[bold]{action} {len(log_dirs_to_delete)} log directories[/bold]")
+
+    if dry_run:
+        console.print("\n[yellow]Dry run - no changes made[/yellow]")
+        return
+
+    # Perform deletion
+    deleted_jobs = 0
+    deleted_logs = 0
+
+    for job in jobs_to_delete:
+        if registry.delete_job(job.job_id):
+            deleted_jobs += 1
+
+    if include_logs:
+        for log_dir in log_dirs_to_delete:
+            try:
+                shutil.rmtree(log_dir)
+                deleted_logs += 1
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not delete {log_dir}: {e}[/yellow]")
+
+    console.print(
+        f"\n[green][OK] Cleaned up {deleted_jobs} jobs"
+        + (f" and {deleted_logs} log directories" if include_logs else "")
+        + "[/green]"
+    )
 
 
 # ============================================================================

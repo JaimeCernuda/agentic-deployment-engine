@@ -1,5 +1,9 @@
 """Topology resolver - Generate deployment plans from topology patterns."""
 
+import os
+
+import paramiko
+
 from .models import DeploymentPlan, JobDefinition
 
 
@@ -81,6 +85,34 @@ class TopologyResolver:
 
         return []
 
+    def _resolve_ssh_hostname(self, host_alias: str) -> str:
+        """Resolve SSH host alias to actual hostname/IP.
+
+        Parses ~/.ssh/config to find the actual HostName for an alias.
+        This is needed because SSH aliases work for SSH connections but
+        not for HTTP requests to agent URLs.
+
+        Args:
+            host_alias: SSH host alias (e.g., "homelab")
+
+        Returns:
+            Actual hostname/IP (e.g., "10.0.0.102") or original if not found
+        """
+        ssh_config_path = os.path.expanduser("~/.ssh/config")
+        if not os.path.exists(ssh_config_path):
+            return host_alias
+
+        try:
+            ssh_config = paramiko.SSHConfig()
+            with open(ssh_config_path) as f:
+                ssh_config.parse(f)
+
+            host_config = ssh_config.lookup(host_alias)
+            return host_config.get("hostname", host_alias)
+        except Exception:
+            # If parsing fails, return original
+            return host_alias
+
     def _resolve_urls(self, job: JobDefinition) -> dict[str, str]:
         """Resolve URL for each agent based on deployment target.
 
@@ -101,8 +133,10 @@ class TopologyResolver:
                 urls[agent.id] = f"http://localhost:{port}"
 
             elif agent.deployment.target == "remote":
+                # Resolve SSH alias to actual hostname for HTTP URLs
                 host = agent.deployment.host
-                urls[agent.id] = f"http://{host}:{port}"
+                actual_host = self._resolve_ssh_hostname(host) if host else "localhost"
+                urls[agent.id] = f"http://{actual_host}:{port}"
 
             elif agent.deployment.target == "container":
                 container = agent.deployment.container_name or agent.id
