@@ -81,7 +81,7 @@ addopts = [
     "--cov=src",
     "--cov=examples",
     "--cov-report=term-missing",
-    "--cov-fail-under=60",
+    "--cov-fail-under=65",
     "-v",
 ]
 markers = [
