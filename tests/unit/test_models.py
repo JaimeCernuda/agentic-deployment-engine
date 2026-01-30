@@ -30,8 +30,6 @@ from src.jobs.models import (
     HealthCheckConfig,
     JobDefinition,
     JobMetadata,
-    NetworkConfig,
-    SSHConfig,
     TopologyConfig,
 )
 
@@ -181,7 +179,7 @@ class TestAgentConfig:
         config = AgentConfig(
             id="weather-agent",
             type="WeatherAgent",
-            module="agents.weather_agent",
+            module="examples.agents.weather_agent",
             config={"port": 9001},
             deployment=AgentDeploymentConfig(target="localhost"),
         )
@@ -208,7 +206,7 @@ class TestAgentConfig:
         config = AgentConfig(
             id="gpu-agent",
             type="GPUAgent",
-            module="agents.gpu",
+            module="examples.agents.gpu",
             config={"port": 9010},
             deployment=AgentDeploymentConfig(target="localhost"),
             resources=AgentResourceConfig(cpu=4.0, memory="8G", gpu=1),
@@ -245,9 +243,7 @@ class TestConnection:
 
     def test_connection_with_type(self) -> None:
         """Connection with explicit type."""
-        conn = Connection(
-            **{"from": "producer", "to": "consumer", "type": "stream"}
-        )
+        conn = Connection(**{"from": "producer", "to": "consumer", "type": "stream"})
         assert conn.type == "stream"
 
     def test_default_connection_type(self) -> None:

@@ -1,0 +1,82 @@
+# All Remote Deployment to Homelab
+# Pattern: Hub-and-Spoke with all agents on homelab
+# Use case: Test full remote deployment via SSH
+
+job:
+  name: homelab-all-remote
+  version: 1.0.0
+  description: All agents deployed to homelab via SSH
+  tags:
+    - ssh
+    - homelab
+    - remote
+    - testing
+
+agents:
+  # Weather service on homelab
+  - id: weather
+    type: WeatherAgent
+    module: agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent
+    deployment:
+      target: remote
+      host: homelab
+      workdir: ~/agent-deploy/weather
+      python: python3
+
+  # Maps service on homelab
+  - id: maps
+    type: MapsAgent
+    module: agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent
+    deployment:
+      target: remote
+      host: homelab
+      workdir: ~/agent-deploy/maps
+      python: python3
+
+  # Controller on homelab
+  - id: controller
+    type: ControllerAgent
+    module: agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: remote
+      host: homelab
+      workdir: ~/agent-deploy/controller
+      python: python3
+
+# Hub-and-spoke topology
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 60
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 5
+
+  ssh:
+    timeout: 30
+    # Uses default SSH key (~/.ssh/id_rsa)
+
+execution:
+  entry_point: controller
+  auto_start: true
+
+environment:
+  DEPLOYMENT_ENV: testing
+  LOG_LEVEL: DEBUG

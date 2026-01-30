@@ -9,12 +9,10 @@ Tests all BaseA2AAgent components:
 - System prompt generation
 """
 
-import asyncio
 import signal
 import sys
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -33,15 +31,19 @@ class ConcreteTestAgent:
     We can't directly instantiate BaseA2AAgent because it's abstract,
     and importing it requires the claude_agent_sdk which we'll mock.
     """
+
     pass
 
 
 @pytest.fixture
 def mock_claude_sdk():
     """Mock the claude_agent_sdk module."""
-    with patch.dict("sys.modules", {
-        "claude_agent_sdk": MagicMock(),
-    }):
+    with patch.dict(
+        "sys.modules",
+        {
+            "claude_agent_sdk": MagicMock(),
+        },
+    ):
         mock_sdk = sys.modules["claude_agent_sdk"]
         mock_sdk.ClaudeAgentOptions = MagicMock()
         mock_sdk.ClaudeSDKClient = MagicMock()
@@ -68,15 +70,16 @@ class TestBaseA2AAgentInitialization:
 
     def test_creates_fastapi_app(self, mock_claude_sdk) -> None:
         """Agent should create a FastAPI app with correct title."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="A test agent",
@@ -89,15 +92,16 @@ class TestBaseA2AAgentInitialization:
 
     def test_creates_log_directory(self, mock_claude_sdk) -> None:
         """Agent should create log directory."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -110,15 +114,16 @@ class TestBaseA2AAgentInitialization:
 
     def test_uses_default_system_prompt(self, mock_claude_sdk) -> None:
         """Agent should generate default system prompt if none provided."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="A test agent",
@@ -130,15 +135,16 @@ class TestBaseA2AAgentInitialization:
 
     def test_uses_custom_system_prompt(self, mock_claude_sdk) -> None:
         """Agent should use custom system prompt if provided."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -148,17 +154,20 @@ class TestBaseA2AAgentInitialization:
 
         assert agent.system_prompt == "Custom prompt here"
 
-    def test_creates_agent_registry_when_connected_agents(self, mock_claude_sdk) -> None:
+    def test_creates_agent_registry_when_connected_agents(
+        self, mock_claude_sdk
+    ) -> None:
         """Agent should create registry when connected_agents is provided."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry") as MockRegistry:
+        with patch("src.agents.base.AgentRegistry") as MockRegistry:
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -171,15 +180,16 @@ class TestBaseA2AAgentInitialization:
 
     def test_no_registry_without_connected_agents(self, mock_claude_sdk) -> None:
         """Agent should not create registry without connected_agents."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry") as MockRegistry:
+        with patch("src.agents.base.AgentRegistry") as MockRegistry:
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -191,15 +201,16 @@ class TestBaseA2AAgentInitialization:
 
     def test_initializes_client_pool_settings(self, mock_claude_sdk) -> None:
         """Agent should initialize client pool with default settings."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -211,18 +222,19 @@ class TestBaseA2AAgentInitialization:
 
     def test_registers_signal_handlers(self, mock_claude_sdk) -> None:
         """Agent should register signal handlers for graceful shutdown."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
         with (
-            patch("src.base_a2a_agent.AgentRegistry"),
-            patch("src.base_a2a_agent.signal.signal") as mock_signal,
-            patch("src.base_a2a_agent.atexit.register") as mock_atexit,
+            patch("src.agents.base.AgentRegistry"),
+            patch("src.agents.base.signal.signal") as mock_signal,
+            patch("src.agents.base.atexit.register") as mock_atexit,
         ):
             TestAgent(
                 name="Test Agent",
@@ -246,17 +258,22 @@ class TestBaseA2AAgentRoutes:
     @pytest.fixture
     def test_agent(self, mock_claude_sdk):
         """Create a test agent for route testing."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return [
-                    {"id": "skill1", "name": "Test Skill", "description": "A test skill"}
+                    {
+                        "id": "skill1",
+                        "name": "Test Skill",
+                        "description": "A test skill",
+                    }
                 ]
+
             def _get_allowed_tools(self) -> list[str]:
                 return ["mcp__test__tool1"]
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             return TestAgent(
                 name="Test Agent",
                 description="A test agent for testing",
@@ -289,32 +306,29 @@ class TestBaseA2AAgentRoutes:
         assert data["agent"] == "Test Agent"
 
     def test_query_endpoint_requires_auth_when_enabled(self, mock_claude_sdk) -> None:
-        """/query should require auth when AGENT_AUTH_REQUIRED is set."""
-        from src.base_a2a_agent import BaseA2AAgent
+        """/query should require auth when auth_required is True."""
+        from src.agents.base import BaseA2AAgent
+        from src.config import AgentSettings
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        # Must set env vars before importing auth module
-        with patch.dict(
-            "os.environ",
-            {"AGENT_AUTH_REQUIRED": "true", "AGENT_API_KEY": "secret"},
-            clear=False
-        ):
-            # Reimport auth to pick up new env
-            import importlib
-            import src.auth
-            importlib.reload(src.auth)
+        # Mock settings with auth enabled
+        mock_settings = AgentSettings(auth_required=True, api_key="secret")
 
-            with patch("src.base_a2a_agent.AgentRegistry"):
-                agent = TestAgent(
-                    name="Test Agent",
-                    description="Test",
-                    port=9001,
-                )
+        with (
+            patch("src.security.auth.settings", mock_settings),
+            patch("src.agents.base.AgentRegistry"),
+        ):
+            agent = TestAgent(
+                name="Test Agent",
+                description="Test",
+                port=9001,
+            )
 
             client = TestClient(agent.app, raise_server_exceptions=False)
 
@@ -325,17 +339,22 @@ class TestBaseA2AAgentRoutes:
 
     def test_query_endpoint_accepts_valid_api_key(self, mock_claude_sdk) -> None:
         """/query should accept valid API key."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
+        from src.config import AgentSettings
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
+        # Mock settings with auth enabled
+        mock_settings = AgentSettings(auth_required=True, api_key="secret")
+
         with (
-            patch("src.base_a2a_agent.AgentRegistry"),
-            patch.dict("os.environ", {"AGENT_AUTH_REQUIRED": "true", "AGENT_API_KEY": "secret"}),
+            patch("src.security.auth.settings", mock_settings),
+            patch("src.agents.base.AgentRegistry"),
         ):
             agent = TestAgent(
                 name="Test Agent",
@@ -343,18 +362,18 @@ class TestBaseA2AAgentRoutes:
                 port=9001,
             )
 
-        # Mock the handle_query method
-        agent._handle_query = AsyncMock(return_value="Test response")
+            # Mock the handle_query method
+            agent._handle_query = AsyncMock(return_value="Test response")
 
-        client = TestClient(agent.app)
+            client = TestClient(agent.app)
 
-        response = client.post(
-            "/query",
-            json={"query": "test"},
-            headers={"X-API-Key": "secret"},
-        )
+            response = client.post(
+                "/query",
+                json={"query": "test"},
+                headers={"X-API-Key": "secret"},
+            )
 
-        assert response.status_code == 200
+            assert response.status_code == 200
 
 
 # ============================================================================
@@ -368,15 +387,16 @@ class TestClientPool:
     @pytest.fixture
     def agent_with_pool(self, mock_claude_sdk):
         """Create agent for pool testing."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             return TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -388,12 +408,13 @@ class TestClientPool:
         self, agent_with_pool, mock_claude_sdk
     ) -> None:
         """_initialize_pool() should create and connect clients."""
-        from claude_agent_sdk import ClaudeSDKClient
 
         mock_client = MagicMock()
         mock_client.connect = AsyncMock()
 
-        with patch("src.base_a2a_agent.ClaudeSDKClient", return_value=mock_client) as mock_cls:
+        with patch(
+            "src.agents.base.ClaudeSDKClient", return_value=mock_client
+        ) as mock_cls:
             await agent_with_pool._initialize_pool()
 
             assert agent_with_pool._pool_initialized
@@ -476,15 +497,18 @@ class TestAgentDiscovery:
     @pytest.fixture
     def agent_with_connections(self, mock_claude_sdk, mock_agent_registry):
         """Create agent with connected agents."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry", return_value=mock_agent_registry):
+        with patch(
+            "src.agents.base.AgentRegistry", return_value=mock_agent_registry
+        ):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -510,7 +534,9 @@ class TestAgentDiscovery:
         self, agent_with_connections, mock_agent_registry
     ) -> None:
         """_discover_agents() should update system prompt with agent info."""
-        mock_agent_registry.generate_system_prompt.return_value = "New prompt with agents"
+        mock_agent_registry.generate_system_prompt.return_value = (
+            "New prompt with agents"
+        )
 
         await agent_with_connections._discover_agents()
 
@@ -521,15 +547,16 @@ class TestAgentDiscovery:
         self, mock_claude_sdk
     ) -> None:
         """_discover_agents() should skip if no registry."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -564,15 +591,16 @@ class TestQueryHandling:
     @pytest.fixture
     def agent_for_query(self, mock_claude_sdk):
         """Create agent for query testing."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             return TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -653,15 +681,18 @@ class TestCleanup:
     @pytest.fixture
     def agent_for_cleanup(self, mock_claude_sdk, mock_agent_registry):
         """Create agent for cleanup testing."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry", return_value=mock_agent_registry):
+        with patch(
+            "src.agents.base.AgentRegistry", return_value=mock_agent_registry
+        ):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -729,9 +760,7 @@ class TestCleanup:
         # Should not raise
         await agent_for_cleanup.cleanup()
 
-    def test_sync_cleanup_creates_event_loop_if_needed(
-        self, agent_for_cleanup
-    ) -> None:
+    def test_sync_cleanup_creates_event_loop_if_needed(self, agent_for_cleanup) -> None:
         """_sync_cleanup() should create event loop if none exists."""
         with patch("asyncio.get_running_loop", side_effect=RuntimeError):
             with patch("asyncio.new_event_loop") as mock_new_loop:
@@ -755,15 +784,16 @@ class TestSignalHandling:
     @pytest.fixture
     def agent_for_signals(self, mock_claude_sdk):
         """Create agent for signal testing."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             return TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -791,15 +821,16 @@ class TestSystemPrompt:
 
     def test_system_prompt_property_is_read_only(self, mock_claude_sdk) -> None:
         """system_prompt property should return _active_system_prompt."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -814,15 +845,16 @@ class TestSystemPrompt:
         self, mock_claude_sdk
     ) -> None:
         """Default system prompt should include agent name and description."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Weather Agent",
                 description="Provides weather information",
@@ -844,45 +876,68 @@ class TestMCPServerConfiguration:
 
     def test_mcp_server_configured_when_provided(self, mock_claude_sdk) -> None:
         """SDK MCP server should be configured when provided."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         mock_server = MagicMock()
+        mock_options = MagicMock()
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
-            agent = TestAgent(
+        # Patch ClaudeAgentOptions directly in the base_a2a_agent module
+        with (
+            patch("src.agents.base.AgentRegistry"),
+            patch(
+                "src.agents.base.ClaudeAgentOptions", return_value=mock_options
+            ) as mock_options_cls,
+        ):
+            TestAgent(
                 name="Test Agent",
                 description="Test",
                 port=9001,
                 sdk_mcp_server=mock_server,
             )
 
-        # Server should be in claude_options
-        assert "test_agent" in agent.claude_options.mcp_servers
+            # Verify ClaudeAgentOptions was called with mcp_servers containing the server
+            mock_options_cls.assert_called_once()
+            call_kwargs = mock_options_cls.call_args[1]
+            assert "test_agent" in call_kwargs["mcp_servers"]
+            assert call_kwargs["mcp_servers"]["test_agent"] is mock_server
 
     def test_no_mcp_servers_when_none_provided(self, mock_claude_sdk) -> None:
         """No MCP servers should be configured when none provided."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
+
+        mock_options = MagicMock()
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
-            agent = TestAgent(
+        # Patch ClaudeAgentOptions directly in the base_a2a_agent module
+        with (
+            patch("src.agents.base.AgentRegistry"),
+            patch(
+                "src.agents.base.ClaudeAgentOptions", return_value=mock_options
+            ) as mock_options_cls,
+        ):
+            TestAgent(
                 name="Test Agent",
                 description="Test",
                 port=9001,
             )
 
-        assert agent.claude_options.mcp_servers == {}
+            # Verify ClaudeAgentOptions was called with empty mcp_servers
+            mock_options_cls.assert_called_once()
+            call_kwargs = mock_options_cls.call_args[1]
+            assert call_kwargs["mcp_servers"] == {}
 
 
 # ============================================================================
@@ -895,11 +950,12 @@ class TestRunMethod:
 
     def test_run_discovers_agents_if_connected(self, mock_claude_sdk) -> None:
         """run() should discover agents before starting if connected_agents set."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
@@ -907,7 +963,7 @@ class TestRunMethod:
         mock_registry.discover_multiple = AsyncMock(return_value=[])
         mock_registry.generate_system_prompt = MagicMock(return_value="prompt")
 
-        with patch("src.base_a2a_agent.AgentRegistry", return_value=mock_registry):
+        with patch("src.agents.base.AgentRegistry", return_value=mock_registry):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
@@ -917,8 +973,10 @@ class TestRunMethod:
             agent.agent_registry = mock_registry
 
         with (
-            patch.object(agent, "_discover_agents", new_callable=AsyncMock) as mock_discover,
-            patch("src.base_a2a_agent.uvicorn.run") as mock_uvicorn,
+            patch.object(
+                agent, "_discover_agents", new_callable=AsyncMock
+            ) as mock_discover,
+            patch("src.agents.base.uvicorn.run") as mock_uvicorn,
         ):
             agent.run()
 
@@ -928,22 +986,23 @@ class TestRunMethod:
 
     def test_run_starts_uvicorn_server(self, mock_claude_sdk) -> None:
         """run() should start uvicorn server with correct parameters."""
-        from src.base_a2a_agent import BaseA2AAgent
+        from src.agents.base import BaseA2AAgent
 
         class TestAgent(BaseA2AAgent):
             def _get_skills(self) -> list:
                 return []
+
             def _get_allowed_tools(self) -> list[str]:
                 return []
 
-        with patch("src.base_a2a_agent.AgentRegistry"):
+        with patch("src.agents.base.AgentRegistry"):
             agent = TestAgent(
                 name="Test Agent",
                 description="Test",
                 port=9001,
             )
 
-        with patch("src.base_a2a_agent.uvicorn.run") as mock_uvicorn:
+        with patch("src.agents.base.uvicorn.run") as mock_uvicorn:
             agent.run()
 
             mock_uvicorn.assert_called_once_with(agent.app, host="0.0.0.0", port=9001)

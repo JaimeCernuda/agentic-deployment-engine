@@ -7,6 +7,7 @@ dependencies = [
     "uvicorn[standard]>=0.24.0",
     "httpx>=0.25.0",
     "pydantic>=2.5.0",
+    "pydantic-settings>=2.0.0",
     "a2a-sdk>=0.1.0",
     "claude-agent-sdk @ git+https://github.com/anthropics/claude-agent-sdk-python.git@main",
     "pyyaml>=6.0.0",
@@ -25,12 +26,25 @@ dev = [
     "ruff>=0.2.0",
     "mypy>=1.8.0",
 ]
+otel = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-instrumentation-fastapi>=0.41b0",
+    "opentelemetry-instrumentation-httpx>=0.41b0",
+    "opentelemetry-instrumentation-logging>=0.41b0",
+]
+crewai = [
+    "crewai>=0.30.0",
+    "litellm>=1.50.0",
+]
 
 [project.scripts]
 # A2A agents with SDK MCP integration
-weather-agent = "agents.weather_agent:main"
-maps-agent = "agents.maps_agent:main"
-controller-agent = "agents.controller_agent:main"
+weather-agent = "examples.agents.weather_agent:main"
+maps-agent = "examples.agents.maps_agent:main"
+controller-agent = "examples.agents.controller_agent:main"
 # Start all agents
 start-all = "src.start_all:main"
 # Job deployment CLI
@@ -58,10 +72,8 @@ asyncio_mode = "auto"
 testpaths = ["tests/unit"]
 addopts = [
     "--cov=src",
-    "--cov=tools",
-    "--cov=agents",
+    "--cov=examples",
     "--cov-report=term-missing",
-    "--cov-report=html:reports/coverage",
     "--cov-fail-under=60",
     "-v",
 ]
@@ -78,7 +90,7 @@ filterwarnings = [
 
 [tool.coverage.run]
 branch = true
-source = ["src", "tools", "agents"]
+source = ["src", "examples"]
 omit = [
     "*/__pycache__/*",
     "*/tests/*",

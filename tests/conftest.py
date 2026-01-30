@@ -140,51 +140,34 @@ def mock_httpx_client() -> MagicMock:
 
 @pytest.fixture
 def env_with_auth() -> Generator[None, None, None]:
-    """Set up environment with authentication enabled.
+    """Set up settings with authentication enabled.
 
     Yields:
-        None. Environment is cleaned up after test.
+        None. Settings are mocked for the duration of the test.
     """
-    original_auth = os.environ.get("AGENT_AUTH_REQUIRED")
-    original_key = os.environ.get("AGENT_API_KEY")
+    from unittest.mock import patch
 
-    os.environ["AGENT_AUTH_REQUIRED"] = "true"
-    os.environ["AGENT_API_KEY"] = "test-api-key-12345"
+    from src.config import AgentSettings
 
-    yield
-
-    # Restore original values
-    if original_auth is None:
-        os.environ.pop("AGENT_AUTH_REQUIRED", None)
-    else:
-        os.environ["AGENT_AUTH_REQUIRED"] = original_auth
-
-    if original_key is None:
-        os.environ.pop("AGENT_API_KEY", None)
-    else:
-        os.environ["AGENT_API_KEY"] = original_key
+    mock_settings = AgentSettings(auth_required=True, api_key="test-api-key-12345")
+    with patch("src.security.auth.settings", mock_settings):
+        yield
 
 
 @pytest.fixture
 def env_without_auth() -> Generator[None, None, None]:
-    """Set up environment with authentication disabled.
+    """Set up settings with authentication disabled.
 
     Yields:
-        None. Environment is cleaned up after test.
+        None. Settings are mocked for the duration of the test.
     """
-    original_auth = os.environ.get("AGENT_AUTH_REQUIRED")
-    original_key = os.environ.get("AGENT_API_KEY")
+    from unittest.mock import patch
 
-    os.environ.pop("AGENT_AUTH_REQUIRED", None)
-    os.environ.pop("AGENT_API_KEY", None)
+    from src.config import AgentSettings
 
-    yield
-
-    # Restore original values
-    if original_auth is not None:
-        os.environ["AGENT_AUTH_REQUIRED"] = original_auth
-    if original_key is not None:
-        os.environ["AGENT_API_KEY"] = original_key
+    mock_settings = AgentSettings(auth_required=False, api_key=None)
+    with patch("src.security.auth.settings", mock_settings):
+        yield
 
 
 @pytest.fixture

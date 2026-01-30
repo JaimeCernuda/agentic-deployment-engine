@@ -55,18 +55,22 @@ def parse_tool_usage_from_log(log_path: Path) -> dict[str, Any]:
     log_content = log_path.read_text()
 
     # Pattern: Query completed. Messages: N, Tools used: M, Response: X chars
-    pattern = r"Query completed\. Messages: (\d+), Tools used: (\d+), Response: (\d+) chars"
+    pattern = (
+        r"Query completed\. Messages: (\d+), Tools used: (\d+), Response: (\d+) chars"
+    )
 
     for match in re.finditer(pattern, log_content):
         messages = int(match.group(1))
         tools_used = int(match.group(2))
         response_chars = int(match.group(3))
 
-        result["queries"].append({
-            "messages": messages,
-            "tools_used": tools_used,
-            "response_chars": response_chars,
-        })
+        result["queries"].append(
+            {
+                "messages": messages,
+                "tools_used": tools_used,
+                "response_chars": response_chars,
+            }
+        )
         result["total_queries"] += 1
         result["total_tools_used"] += tools_used
         if tools_used > 0:
@@ -149,7 +153,7 @@ async def test_weather_agent_uses_tools():
 
     Expected: Weather agent should use mcp__weather_agent__get_weather tool.
     """
-    deployed_job, deployer = await deploy_job("jobs/examples/simple-weather.yaml")
+    deployed_job, deployer = await deploy_job("examples/jobs/simple-weather.yaml")
 
     try:
         # Get weather agent URL
@@ -215,7 +219,7 @@ async def test_controller_agent_uses_a2a_tools():
     Expected: Controller should use mcp__controller_agent__query_agent
     to communicate with the weather agent.
     """
-    deployed_job, deployer = await deploy_job("jobs/examples/simple-weather.yaml")
+    deployed_job, deployer = await deploy_job("examples/jobs/simple-weather.yaml")
 
     try:
         # Get controller URL
@@ -228,7 +232,7 @@ async def test_controller_agent_uses_a2a_tools():
         # Send a query that requires coordination with weather agent
         response = await query_agent(
             controller_url,
-            "What is the weather in Tokyo? Please use the weather agent."
+            "What is the weather in Tokyo? Please use the weather agent.",
         )
 
         # Wait for log
@@ -292,7 +296,7 @@ async def test_maps_agent_uses_tools():
 
     Expected: Maps agent should use mcp__maps_agent__get_distance tool.
     """
-    deployed_job, deployer = await deploy_job("jobs/examples/simple-weather.yaml")
+    deployed_job, deployer = await deploy_job("examples/jobs/simple-weather.yaml")
 
     try:
         # Get maps agent URL
@@ -303,7 +307,9 @@ async def test_maps_agent_uses_tools():
         initial_size = log_path.stat().st_size if log_path.exists() else 0
 
         # Send query requiring distance tool
-        response = await query_agent(maps_url, "What is the distance from Tokyo to London?")
+        response = await query_agent(
+            maps_url, "What is the distance from Tokyo to London?"
+        )
 
         await asyncio.sleep(1.0)
 
@@ -345,7 +351,7 @@ async def test_tool_naming_convention():
 
     This test verifies the expected tool names appear in logs.
     """
-    deployed_job, deployer = await deploy_job("jobs/examples/simple-weather.yaml")
+    deployed_job, deployer = await deploy_job("examples/jobs/simple-weather.yaml")
 
     try:
         # Query weather agent to trigger tool usage
@@ -396,7 +402,7 @@ async def test_all_agents_use_tools():
     This is the definitive test for the tool permission fix.
     All three agents should use their tools when queried appropriately.
     """
-    deployed_job, deployer = await deploy_job("jobs/examples/simple-weather.yaml")
+    deployed_job, deployer = await deploy_job("examples/jobs/simple-weather.yaml")
 
     results = {
         "weather": {"tools_used": 0, "response": ""},

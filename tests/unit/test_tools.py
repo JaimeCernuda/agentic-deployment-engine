@@ -14,15 +14,13 @@ data and algorithms.
 
 import math
 
-import pytest
-
 
 class TestWeatherData:
     """Tests for weather data structure and values."""
 
     def test_weather_data_has_all_cities(self) -> None:
         """Should have data for all expected cities."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         expected_cities = ["tokyo", "london", "new york", "paris"]
         for city in expected_cities:
@@ -30,7 +28,7 @@ class TestWeatherData:
 
     def test_weather_data_structure(self) -> None:
         """Should have correct data structure for each city."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         required_keys = ["temperature", "description", "humidity", "wind_speed"]
 
@@ -40,7 +38,7 @@ class TestWeatherData:
 
     def test_weather_data_valid_temperatures(self) -> None:
         """Should have realistic temperature values (Celsius)."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         for city, data in WEATHER_DATA.items():
             temp = data["temperature"]
@@ -49,7 +47,7 @@ class TestWeatherData:
 
     def test_weather_data_valid_humidity(self) -> None:
         """Should have valid humidity percentages (0-100)."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         for city, data in WEATHER_DATA.items():
             humidity = data["humidity"]
@@ -58,7 +56,7 @@ class TestWeatherData:
 
     def test_weather_data_valid_wind_speed(self) -> None:
         """Should have realistic wind speed values."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         for city, data in WEATHER_DATA.items():
             wind = data["wind_speed"]
@@ -67,7 +65,7 @@ class TestWeatherData:
 
     def test_weather_data_has_descriptions(self) -> None:
         """Should have non-empty descriptions."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         for city, data in WEATHER_DATA.items():
             desc = data["description"]
@@ -76,7 +74,7 @@ class TestWeatherData:
 
     def test_tokyo_weather_values(self) -> None:
         """Should have correct Tokyo weather values."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         tokyo = WEATHER_DATA["tokyo"]
         assert tokyo["temperature"] == 22.5
@@ -86,7 +84,7 @@ class TestWeatherData:
 
     def test_london_weather_values(self) -> None:
         """Should have correct London weather values."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         london = WEATHER_DATA["london"]
         assert london["temperature"] == 15.2
@@ -95,7 +93,7 @@ class TestWeatherData:
 
     def test_new_york_weather_values(self) -> None:
         """Should have correct New York weather values."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         ny = WEATHER_DATA["new york"]
         assert ny["temperature"] == 18.8
@@ -104,7 +102,7 @@ class TestWeatherData:
 
     def test_paris_weather_values(self) -> None:
         """Should have correct Paris weather values."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         paris = WEATHER_DATA["paris"]
         assert paris["temperature"] == 16.9
@@ -119,7 +117,7 @@ class TestTemperatureConversion:
         """Should correctly convert Celsius to Fahrenheit."""
         # Formula: F = C * 9/5 + 32
         celsius = 22.5  # Tokyo temp
-        fahrenheit = (celsius * 9/5) + 32
+        fahrenheit = (celsius * 9 / 5) + 32
         assert abs(fahrenheit - 72.5) < 0.1
 
     def test_celsius_to_kelvin(self) -> None:
@@ -132,7 +130,7 @@ class TestTemperatureConversion:
     def test_freezing_point_conversions(self) -> None:
         """Should handle freezing point correctly."""
         celsius = 0
-        fahrenheit = (celsius * 9/5) + 32
+        fahrenheit = (celsius * 9 / 5) + 32
         kelvin = celsius + 273.15
 
         assert fahrenheit == 32
@@ -141,7 +139,7 @@ class TestTemperatureConversion:
     def test_negative_temperature_conversions(self) -> None:
         """Should handle negative temperatures correctly."""
         celsius = -10
-        fahrenheit = (celsius * 9/5) + 32
+        fahrenheit = (celsius * 9 / 5) + 32
         kelvin = celsius + 273.15
 
         assert fahrenheit == 14
@@ -153,14 +151,14 @@ class TestHaversineDistance:
 
     def test_same_point_returns_zero(self) -> None:
         """Should return 0 for same coordinates."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         distance = haversine_distance(35.6762, 139.6503, 35.6762, 139.6503)
         assert distance == 0
 
     def test_tokyo_london_distance(self) -> None:
         """Should calculate correct distance Tokyo to London."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         # Tokyo: 35.6762, 139.6503
         # London: 51.5074, -0.1278
@@ -171,7 +169,7 @@ class TestHaversineDistance:
 
     def test_london_paris_distance(self) -> None:
         """Should calculate correct distance London to Paris."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         # London: 51.5074, -0.1278
         # Paris: 48.8566, 2.3522
@@ -182,7 +180,7 @@ class TestHaversineDistance:
 
     def test_new_york_paris_distance(self) -> None:
         """Should calculate correct distance New York to Paris."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         # New York: 40.7128, -74.0060
         # Paris: 48.8566, 2.3522
@@ -193,7 +191,7 @@ class TestHaversineDistance:
 
     def test_symmetry(self) -> None:
         """Distance should be same regardless of direction."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         dist1 = haversine_distance(35.6762, 139.6503, 51.5074, -0.1278)
         dist2 = haversine_distance(51.5074, -0.1278, 35.6762, 139.6503)
@@ -202,7 +200,7 @@ class TestHaversineDistance:
 
     def test_equator_distance(self) -> None:
         """Should calculate distance along equator."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         # Points on equator, 1 degree apart in longitude
         distance = haversine_distance(0, 0, 0, 1)
@@ -212,7 +210,7 @@ class TestHaversineDistance:
 
     def test_pole_to_pole(self) -> None:
         """Should calculate distance from pole to pole."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         # North pole to South pole
         distance = haversine_distance(90, 0, -90, 0)
@@ -222,7 +220,7 @@ class TestHaversineDistance:
 
     def test_short_distances(self) -> None:
         """Should handle very short distances."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         # Two points very close together
         distance = haversine_distance(35.6762, 139.6503, 35.6763, 139.6504)
@@ -236,7 +234,7 @@ class TestCityCoordinates:
 
     def test_city_coordinates_has_all_cities(self) -> None:
         """Should have coordinates for all expected cities."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         expected_cities = ["tokyo", "london", "new york", "paris"]
         for city in expected_cities:
@@ -244,7 +242,7 @@ class TestCityCoordinates:
 
     def test_city_coordinates_structure(self) -> None:
         """Should have correct coordinate structure."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         for city, coords in CITY_COORDINATES.items():
             assert "lat" in coords, f"{city} missing lat"
@@ -252,7 +250,7 @@ class TestCityCoordinates:
 
     def test_city_coordinates_valid_latitude_range(self) -> None:
         """Should have valid latitude values (-90 to 90)."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         for city, coords in CITY_COORDINATES.items():
             lat = coords["lat"]
@@ -260,7 +258,7 @@ class TestCityCoordinates:
 
     def test_city_coordinates_valid_longitude_range(self) -> None:
         """Should have valid longitude values (-180 to 180)."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         for city, coords in CITY_COORDINATES.items():
             lon = coords["lon"]
@@ -268,7 +266,7 @@ class TestCityCoordinates:
 
     def test_tokyo_coordinates(self) -> None:
         """Should have correct Tokyo coordinates."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         tokyo = CITY_COORDINATES["tokyo"]
         # Tokyo is in Northern hemisphere, Eastern
@@ -277,7 +275,7 @@ class TestCityCoordinates:
 
     def test_london_coordinates(self) -> None:
         """Should have correct London coordinates."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         london = CITY_COORDINATES["london"]
         # London is in Northern hemisphere, near prime meridian
@@ -286,7 +284,7 @@ class TestCityCoordinates:
 
     def test_new_york_coordinates(self) -> None:
         """Should have correct New York coordinates."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         ny = CITY_COORDINATES["new york"]
         # New York is in Northern hemisphere, Western
@@ -295,7 +293,7 @@ class TestCityCoordinates:
 
     def test_paris_coordinates(self) -> None:
         """Should have correct Paris coordinates."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         paris = CITY_COORDINATES["paris"]
         # Paris is in Northern hemisphere, Eastern Europe
@@ -314,7 +312,7 @@ class TestDistanceConversions:
 
     def test_tokyo_london_in_miles(self) -> None:
         """Should convert Tokyo-London distance to miles."""
-        from tools.maps_tools import haversine_distance
+        from examples.tools.maps_tools import haversine_distance
 
         distance_km = haversine_distance(35.6762, 139.6503, 51.5074, -0.1278)
         distance_miles = distance_km * 0.621371
@@ -328,23 +326,22 @@ class TestAllCityPairs:
 
     def test_all_pairs_positive_distance(self) -> None:
         """All non-identical city pairs should have positive distance."""
-        from tools.maps_tools import CITY_COORDINATES, haversine_distance
+        from examples.tools.maps_tools import CITY_COORDINATES, haversine_distance
 
         cities = list(CITY_COORDINATES.keys())
 
         for i, city1 in enumerate(cities):
-            for city2 in cities[i+1:]:
+            for city2 in cities[i + 1 :]:
                 coords1 = CITY_COORDINATES[city1]
                 coords2 = CITY_COORDINATES[city2]
                 distance = haversine_distance(
-                    coords1["lat"], coords1["lon"],
-                    coords2["lat"], coords2["lon"]
+                    coords1["lat"], coords1["lon"], coords2["lat"], coords2["lon"]
                 )
                 assert distance > 0, f"Zero distance between {city1} and {city2}"
 
     def test_all_pairs_reasonable_distance(self) -> None:
         """All city pairs should have distance less than half Earth circumference."""
-        from tools.maps_tools import CITY_COORDINATES, haversine_distance
+        from examples.tools.maps_tools import CITY_COORDINATES, haversine_distance
 
         cities = list(CITY_COORDINATES.keys())
         max_distance = 20000  # Half of Earth's circumference
@@ -354,10 +351,11 @@ class TestAllCityPairs:
                 coords1 = CITY_COORDINATES[city1]
                 coords2 = CITY_COORDINATES[city2]
                 distance = haversine_distance(
-                    coords1["lat"], coords1["lon"],
-                    coords2["lat"], coords2["lon"]
+                    coords1["lat"], coords1["lon"], coords2["lat"], coords2["lon"]
                 )
-                assert distance <= max_distance, f"Unrealistic distance between {city1} and {city2}"
+                assert distance <= max_distance, (
+                    f"Unrealistic distance between {city1} and {city2}"
+                )
 
 
 class TestDataConsistency:
@@ -365,8 +363,8 @@ class TestDataConsistency:
 
     def test_same_cities_in_both_modules(self) -> None:
         """Weather and maps should have the same cities."""
-        from tools.maps_tools import CITY_COORDINATES
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.maps_tools import CITY_COORDINATES
+        from examples.tools.weather_tools import WEATHER_DATA
 
         weather_cities = set(WEATHER_DATA.keys())
         maps_cities = set(CITY_COORDINATES.keys())
@@ -378,8 +376,8 @@ class TestDataConsistency:
 
     def test_city_count(self) -> None:
         """Both modules should have exactly 4 cities."""
-        from tools.maps_tools import CITY_COORDINATES
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.maps_tools import CITY_COORDINATES
+        from examples.tools.weather_tools import WEATHER_DATA
 
         assert len(WEATHER_DATA) == 4
         assert len(CITY_COORDINATES) == 4
@@ -390,7 +388,7 @@ class TestEdgeCases:
 
     def test_weather_data_is_immutable_copy_safe(self) -> None:
         """Copying weather data should not affect original."""
-        from tools.weather_tools import WEATHER_DATA
+        from examples.tools.weather_tools import WEATHER_DATA
 
         original_temp = WEATHER_DATA["tokyo"]["temperature"]
 
@@ -403,7 +401,7 @@ class TestEdgeCases:
 
     def test_coordinates_numeric_types(self) -> None:
         """Coordinates should be numeric types suitable for math."""
-        from tools.maps_tools import CITY_COORDINATES
+        from examples.tools.maps_tools import CITY_COORDINATES
 
         for city, coords in CITY_COORDINATES.items():
             lat = coords["lat"]

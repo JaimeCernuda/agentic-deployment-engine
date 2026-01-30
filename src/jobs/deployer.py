@@ -2,13 +2,15 @@
 
 import asyncio
 import getpass
+import logging
 import os
+import shlex
 import subprocess
 import sys
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import httpx
 import paramiko
@@ -20,6 +22,8 @@ from .models import (
     DeploymentPlan,
     JobDefinition,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class DeploymentError(Exception):
@@ -38,7 +42,7 @@ class AgentRunner(ABC):
 
     @abstractmethod
     async def start(
-        self, agent: AgentConfig, connected_urls: List[str], env: Dict[str, str]
+        self, agent: AgentConfig, connected_urls: list[str], env: dict[str, str]
     ) -> Any:
         """Start an agent.
 
@@ -83,7 +87,7 @@ class AgentRunner(ABC):
 class LocalRunner(AgentRunner):
     """Run agents locally via subprocess."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         """Initialize local runner.
 
         Args:
@@ -94,7 +98,7 @@ class LocalRunner(AgentRunner):
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     async def start(
-        self, agent: AgentConfig, connected_urls: List[str], env: Dict[str, str]
+        self, agent: AgentConfig, connected_urls: list[str], env: dict[str, str]
     ) -> subprocess.Popen:
         """Start agent locally via python -m.
 
@@ -109,8 +113,9 @@ class LocalRunner(AgentRunner):
         # Use python -m to run the agent module directly
         cmd = [sys.executable, "-m", agent.module]
 
-        # Build environment
-        process_env = env.copy()
+        # Build environment - start with system env (critical on Windows for networking)
+        process_env = os.environ.copy()
+        process_env.update(env)
 
         # Add agent-specific config as environment variables
         for key, value in agent.config.items():
@@ -150,9 +155,7 @@ class LocalRunner(AgentRunner):
                 stderr_file.close()
                 with open(stderr_log) as f:
                     error = f.read()
-                raise DeploymentError(
-                    f"Agent {agent.id} failed to start:\n{error}"
-                )
+                raise DeploymentError(f"Agent {agent.id} failed to start:\n{error}")
 
             return process
 
@@ -171,14 +174,12 @@ class LocalRunner(AgentRunner):
         try:
             process.terminate()
             try:
-                await asyncio.wait_for(
-                    asyncio.to_thread(process.wait), timeout=10.0
-                )
-            except asyncio.TimeoutError:
+                await asyncio.wait_for(asyncio.to_thread(process.wait), timeout=10.0)
+            except TimeoutError:
                 process.kill()
                 await asyncio.to_thread(process.wait)
         except Exception as e:
-            print(f"Warning: Error stopping agent {agent_id}: {e}")
+            logger.warning(f"Error stopping agent {agent_id}: {e}")
 
     async def get_status(self, process: subprocess.Popen) -> str:
         """Get process status.
@@ -203,7 +204,9 @@ class LocalRunner(AgentRunner):
 class RemoteProcess:
     """Reference to a remote process."""
 
-    def __init__(self, ssh_client: paramiko.SSHClient, pid: int, agent_id: str, host: str):
+    def __init__(
+        self, ssh_client: paramiko.SSHClient, pid: int, agent_id: str, host: str
+    ):
         self.ssh_client = ssh_client
         self.pid = pid
         self.agent_id = agent_id
@@ -222,14 +225,14 @@ class RemoteProcess:
 class SSHRunner(AgentRunner):
     """Run agents on remote hosts via SSH."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         """Initialize SSH runner.
 
         Args:
             project_root: Project root directory (for transferring code)
         """
         self.project_root = project_root or Path.cwd()
-        self.connections: Dict[str, paramiko.SSHClient] = {}
+        self.connections: dict[str, paramiko.SSHClient] = {}
 
     def _get_ssh_client(self, agent: AgentConfig) -> paramiko.SSHClient:
         """Get or create SSH connection for agent.
@@ -242,16 +245,28 @@ class SSHRunner(AgentRunner):
         """
         host = agent.deployment.host
         if not host:
-            raise DeploymentError("Remote deployment requires 'host' in deployment config")
+            raise DeploymentError(
+                "Remote deployment requires 'host' in deployment config"
+            )
 
         # Reuse connection if exists
         connection_key = f"{host}:{agent.deployment.port or 22}"
         if connection_key in self.connections:
             return self.connections[connection_key]
 
-        # Create new connection
+        # Create new connection with secure host key policy
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+        # Load system known hosts for host key verification
+        known_hosts_path = os.path.expanduser("~/.ssh/known_hosts")
+        if os.path.exists(known_hosts_path):
+            ssh.load_host_keys(known_hosts_path)
+            logger.debug(f"Loaded known hosts from {known_hosts_path}")
+
+        # SECURITY: Use RejectPolicy to prevent MITM attacks
+        # AutoAddPolicy would accept any host key, enabling MITM attacks
+        # If you need to add a new host, use: ssh-keyscan <host> >> ~/.ssh/known_hosts
+        ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
 
         # Get SSH configuration
         user = agent.deployment.user or getpass.getuser()
@@ -269,7 +284,7 @@ class SSHRunner(AgentRunner):
                 ssh_key = default_key
 
         try:
-            print(f"    Connecting to {user}@{host}:{ssh_port}...")
+            logger.info(f"Connecting to {user}@{host}:{ssh_port}...")
 
             connect_kwargs = {
                 "hostname": host,
@@ -281,11 +296,12 @@ class SSHRunner(AgentRunner):
             if ssh_key and os.path.exists(ssh_key):
                 connect_kwargs["key_filename"] = ssh_key
             elif password:
-                connect_kwargs["password"] = password
+                # SecretStr requires .get_secret_value() to access the actual value
+                connect_kwargs["password"] = password.get_secret_value()
 
             ssh.connect(**connect_kwargs)
             self.connections[connection_key] = ssh
-            print(f"    ✓ SSH connected")
+            logger.info("SSH connected successfully")
 
             return ssh
 
@@ -293,7 +309,7 @@ class SSHRunner(AgentRunner):
             raise DeploymentError(f"SSH connection failed to {user}@{host}: {e}")
 
     async def start(
-        self, agent: AgentConfig, connected_urls: List[str], env: Dict[str, str]
+        self, agent: AgentConfig, connected_urls: list[str], env: dict[str, str]
     ) -> RemoteProcess:
         """Start agent on remote host via SSH.
 
@@ -318,18 +334,26 @@ class SSHRunner(AgentRunner):
         if agent.deployment.environment:
             env_vars.update(agent.deployment.environment)
 
-        # Build environment string for command - properly quote values with spaces
-        env_str = " ".join([f'{k}="{v}"' for k, v in env_vars.items()])
+        # SECURITY: Use shlex.quote to prevent shell injection attacks
+        # Double-quoting is NOT sufficient - malicious values like: value"; rm -rf / #
+        # would escape the quotes. shlex.quote properly escapes for POSIX shells.
+        def safe_env_value(value: str) -> str:
+            """Safely escape environment variable value for shell."""
+            return shlex.quote(str(value))
+
+        env_str = " ".join([f"{k}={safe_env_value(v)}" for k, v in env_vars.items()])
 
         # Get remote configuration
         # Special case: if deploying to localhost, use project directory with uv
         if agent.deployment.host == "localhost":
-            import os
             import shutil
+
             workdir = os.getcwd()  # Use current project directory
             # Find uv in PATH
             uv_path = shutil.which("uv") or os.path.expanduser("~/.local/bin/uv")
-            python = f"{uv_path} run python"  # Use uv with full path
+            python = (
+                f"{shlex.quote(uv_path)} run python"  # Use uv with full path, quoted
+            )
         else:
             workdir = agent.deployment.workdir or f"~/agents/{agent.id}"
             python = agent.deployment.python or "python3"
@@ -340,23 +364,25 @@ class SSHRunner(AgentRunner):
             stdout.channel.recv_exit_status()  # Wait for command
 
             # Transfer agent code to remote host
-            print(f"    Transferring code to {workdir}...")
+            logger.info(f"Transferring code to {workdir}...")
             await self._transfer_code(ssh, agent, workdir)
         else:
-            print(f"    Using project directory: {workdir}...")
+            logger.debug(f"Using project directory: {workdir}")
 
         # Build command to run agent
         # We'll use nohup to keep it running after SSH disconnect
-        log_file = f"{workdir}/{agent.id}.log"
+        # SECURITY: Quote workdir to prevent shell injection via path names
+        safe_workdir = shlex.quote(workdir)
+        log_file = f"{safe_workdir}/{shlex.quote(agent.id)}.log"
         cmd = (
-            f"cd {workdir} && "
+            f"cd {safe_workdir} && "
             f"nohup env {env_str} {python} -m {agent.module} "
             f"> {log_file} 2>&1 & "
             f"echo $!"
         )
 
-        print(f"    Starting remote process...")
-        print(f"    Command: {cmd[:100]}...")
+        logger.info("Starting remote process...")
+        logger.debug(f"Command: {cmd[:100]}...")
         stdin, stdout, stderr = ssh.exec_command(cmd)
 
         # Get PID
@@ -367,7 +393,7 @@ class SSHRunner(AgentRunner):
             error = stderr.read().decode()
             raise DeploymentError(f"Failed to start remote agent: {error}")
 
-        print(f"    ✓ Remote process started (PID: {pid})")
+        logger.info(f"Remote process started (PID: {pid})")
 
         # Give it a moment to start
         await asyncio.sleep(1.0)
@@ -390,7 +416,13 @@ class SSHRunner(AgentRunner):
     async def _transfer_code(
         self, ssh: paramiko.SSHClient, agent: AgentConfig, remote_dir: str
     ) -> None:
-        """Transfer agent code to remote host.
+        """Transfer agent code to remote host via SFTP.
+
+        Syncs the following directories:
+        - src/ (core modules)
+        - tools/ (MCP tools)
+        - agents/ (agent implementations)
+        - pyproject.toml (for dependency installation)
 
         Args:
             ssh: SSH client
@@ -400,27 +432,56 @@ class SSHRunner(AgentRunner):
         sftp = ssh.open_sftp()
 
         try:
-            # Transfer main agent module and dependencies
-            # For now, we assume the code is already on the remote host
-            # In production, you'd use rsync or SFTP to transfer files
+            # Directories to sync
+            dirs_to_sync = ["src", "examples"]
 
-            # Create directory structure
-            module_parts = agent.module.split(".")
-            current_dir = remote_dir
+            for dir_name in dirs_to_sync:
+                local_dir = self.project_root / dir_name
+                if local_dir.exists():
+                    remote_path = f"{remote_dir}/{dir_name}"
+                    await self._sync_directory(sftp, local_dir, remote_path)
+                    logger.debug(f"Synced {dir_name}/ to {remote_path}")
 
-            for part in module_parts[:-1]:
-                current_dir = f"{current_dir}/{part}"
-                try:
-                    sftp.mkdir(current_dir)
-                except IOError:
-                    pass  # Directory exists
+            # Copy pyproject.toml for dependency installation
+            pyproject_path = self.project_root / "pyproject.toml"
+            if pyproject_path.exists():
+                sftp.put(str(pyproject_path), f"{remote_dir}/pyproject.toml")
+                logger.debug("Synced pyproject.toml")
 
-            # For this implementation, we assume code is already deployed
-            # or we're using a shared filesystem
-            # TODO: Implement actual file transfer via SFTP
+            logger.info(f"Code transferred to {remote_dir}")
 
         finally:
             sftp.close()
+
+    async def _sync_directory(
+        self, sftp: paramiko.SFTPClient, local_dir: Path, remote_dir: str
+    ) -> None:
+        """Recursively sync a directory via SFTP.
+
+        Args:
+            sftp: SFTP client
+            local_dir: Local directory path
+            remote_dir: Remote directory path
+        """
+        # Create remote directory if it doesn't exist
+        try:
+            sftp.mkdir(remote_dir)
+        except OSError:
+            pass  # Directory exists
+
+        for item in local_dir.iterdir():
+            remote_path = f"{remote_dir}/{item.name}"
+
+            # Skip __pycache__ and hidden files
+            if item.name.startswith("__") or item.name.startswith("."):
+                continue
+
+            if item.is_file():
+                # Only sync Python files and config files
+                if item.suffix in (".py", ".toml", ".yaml", ".yml", ".json"):
+                    sftp.put(str(item), remote_path)
+            elif item.is_dir():
+                await self._sync_directory(sftp, item, remote_path)
 
     async def stop(self, process: RemoteProcess, agent_id: str) -> None:
         """Stop remote agent process.
@@ -448,7 +509,7 @@ class SSHRunner(AgentRunner):
                 stdout.channel.recv_exit_status()
 
         except Exception as e:
-            print(f"Warning: Error stopping remote agent {agent_id}: {e}")
+            logger.warning(f"Error stopping remote agent {agent_id}: {e}")
 
     async def get_status(self, process: RemoteProcess) -> str:
         """Get remote process status.
@@ -482,22 +543,20 @@ class SSHRunner(AgentRunner):
 class AgentDeployer:
     """Deploy agents according to deployment plan."""
 
-    def __init__(self, project_root: Optional[Path] = None):
+    def __init__(self, project_root: Path | None = None):
         """Initialize deployer.
 
         Args:
             project_root: Project root directory
         """
         self.project_root = project_root or Path.cwd()
-        self.runners: Dict[str, AgentRunner] = {
+        self.runners: dict[str, AgentRunner] = {
             "localhost": LocalRunner(self.project_root),
             "remote": SSHRunner(self.project_root),
             # TODO: Add DockerRunner, KubernetesRunner
         }
 
-    async def deploy(
-        self, job: JobDefinition, plan: DeploymentPlan
-    ) -> DeployedJob:
+    async def deploy(self, job: JobDefinition, plan: DeploymentPlan) -> DeployedJob:
         """Execute deployment plan.
 
         Args:
@@ -510,12 +569,12 @@ class AgentDeployer:
         Raises:
             DeploymentError: If deployment fails
         """
-        print(f"Deploying job: {job.job.name}")
-        print(f"Deployment strategy: {job.deployment.strategy}")
-        print(f"Stages: {len(plan.stages)}")
+        logger.info(f"Deploying job: {job.job.name}")
+        logger.info(f"Deployment strategy: {job.deployment.strategy}")
+        logger.info(f"Stages: {len(plan.stages)}")
 
-        deployed_agents: Dict[str, DeployedAgent] = {}
-        processes: Dict[str, Any] = {}
+        deployed_agents: dict[str, DeployedAgent] = {}
+        processes: dict[str, Any] = {}
 
         try:
             # Build global environment
@@ -526,7 +585,7 @@ class AgentDeployer:
                 if not stage:
                     continue
 
-                print(f"\nStage {stage_idx + 1}/{len(plan.stages)}: {stage}")
+                logger.info(f"Stage {stage_idx + 1}/{len(plan.stages)}: {stage}")
 
                 # Deploy all agents in this stage (in parallel if strategy allows)
                 if job.deployment.strategy == "parallel" or (
@@ -535,9 +594,7 @@ class AgentDeployer:
                     # Parallel deployment within stage
                     tasks = []
                     for agent_id in stage:
-                        task = self._deploy_agent(
-                            job, agent_id, plan, global_env
-                        )
+                        task = self._deploy_agent(job, agent_id, plan, global_env)
                         tasks.append((agent_id, task))
 
                     # Wait for all in parallel
@@ -565,7 +622,7 @@ class AgentDeployer:
                                 f"Failed to deploy agent {agent_id}: {e}"
                             )
 
-            print(f"\n✓ Deployed {len(deployed_agents)} agents")
+            logger.info(f"Deployed {len(deployed_agents)} agents successfully")
 
             return DeployedJob(
                 job_id=job.job.name,
@@ -578,8 +635,8 @@ class AgentDeployer:
 
         except Exception as e:
             # Cleanup on failure
-            print(f"\n✗ Deployment failed: {e}")
-            print("Cleaning up deployed agents...")
+            logger.error(f"Deployment failed: {e}")
+            logger.info("Cleaning up deployed agents...")
             await self._cleanup_agents(job, processes)
             raise
 
@@ -588,7 +645,7 @@ class AgentDeployer:
         job: JobDefinition,
         agent_id: str,
         plan: DeploymentPlan,
-        global_env: Dict[str, str],
+        global_env: dict[str, str],
     ) -> tuple[DeployedAgent, Any]:
         """Deploy a single agent.
 
@@ -605,7 +662,7 @@ class AgentDeployer:
         if not agent_config:
             raise DeploymentError(f"Agent {agent_id} not found in job definition")
 
-        print(f"  Deploying {agent_id}...", end=" ", flush=True)
+        logger.info(f"Deploying {agent_id}...")
 
         # Get runner for deployment target
         runner = self.runners.get(agent_config.deployment.target)
@@ -631,7 +688,7 @@ class AgentDeployer:
             retries=job.deployment.health_check.retries,
         )
 
-        print(f"✓ {agent_url}")
+        logger.info(f"Agent {agent_id} deployed at {agent_url}")
 
         # Create deployed agent record
         deployed_agent = DeployedAgent(
@@ -679,9 +736,7 @@ class AgentDeployer:
                 if attempt < retries - 1:
                     await asyncio.sleep(interval)
 
-        raise DeploymentError(
-            f"Agent {agent_id} failed to become healthy at {url}"
-        )
+        raise DeploymentError(f"Agent {agent_id} failed to become healthy at {url}")
 
     async def stop(self, deployed_job: DeployedJob) -> None:
         """Stop all agents in a deployed job.
@@ -689,18 +744,18 @@ class AgentDeployer:
         Args:
             deployed_job: Deployed job to stop
         """
-        print(f"Stopping job: {deployed_job.job_id}")
+        logger.info(f"Stopping job: {deployed_job.job_id}")
 
         # Stop in reverse order
         stages = list(reversed(deployed_job.plan.stages))
 
         for stage_idx, stage in enumerate(stages):
-            print(f"Stage {stage_idx + 1}/{len(stages)}: Stopping {stage}")
+            logger.info(f"Stage {stage_idx + 1}/{len(stages)}: Stopping {stage}")
 
             for agent_id in stage:
                 if agent_id in deployed_job.agents:
                     agent = deployed_job.agents[agent_id]
-                    print(f"  Stopping {agent_id}...")
+                    logger.info(f"Stopping {agent_id}...")
 
                     # Get agent config to determine runner
                     agent_config = deployed_job.definition.get_agent(agent_id)
@@ -711,10 +766,10 @@ class AgentDeployer:
                             # In real implementation, we'd track processes
                             pass
 
-        print("✓ Job stopped")
+        logger.info("Job stopped successfully")
 
     async def _cleanup_agents(
-        self, job: JobDefinition, processes: Dict[str, Any]
+        self, job: JobDefinition, processes: dict[str, Any]
     ) -> None:
         """Cleanup agents after deployment failure.
 
@@ -730,4 +785,4 @@ class AgentDeployer:
                     try:
                         await runner.stop(process, agent_id)
                     except Exception as e:
-                        print(f"Warning: Failed to stop {agent_id}: {e}")
+                        logger.warning(f"Failed to stop {agent_id}: {e}")

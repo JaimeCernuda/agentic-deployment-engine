@@ -54,13 +54,14 @@ async def test_deployment():
         for agent_id, agent in deployed_job.agents.items():
             try:
                 response = await client.get(
-                    f"{agent.url}/.well-known/agent-configuration",
-                    timeout=5.0
+                    f"{agent.url}/.well-known/agent-configuration", timeout=5.0
                 )
                 if response.status_code == 200:
                     print(f"   ✓ {agent_id} ({agent.url}): healthy")
                 else:
-                    print(f"   ✗ {agent_id} ({agent.url}): status {response.status_code}")
+                    print(
+                        f"   ✗ {agent_id} ({agent.url}): status {response.status_code}"
+                    )
             except Exception as e:
                 print(f"   ✗ {agent_id} ({agent.url}): {e}")
 
@@ -71,7 +72,7 @@ async def test_deployment():
             response = await client.post(
                 "http://localhost:9000/query",
                 json={"query": "What's the weather in Tokyo?"},
-                timeout=30.0
+                timeout=30.0,
             )
             if response.status_code == 200:
                 result = response.json()

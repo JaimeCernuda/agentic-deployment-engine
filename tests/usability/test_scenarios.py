@@ -390,7 +390,8 @@ async def test_logs_show_a2a_communication():
 
             # Get errors, filtering out expected port binding issues from consecutive tests
             errors = [
-                e for e in verifier.get_errors()
+                e
+                for e in verifier.get_errors()
                 if "Errno 10048" not in e  # Windows port reuse error
                 and "Event loop is closed" not in e  # Cleanup timing
             ]
@@ -443,7 +444,7 @@ async def test_sequential_weather_queries():
             # First query
             resp1 = await client.post(
                 f"{deployed_job.agents['weather'].url}/query",
-                json={"query": "What is the weather in London?"}
+                json={"query": "What is the weather in London?"},
             )
             assert resp1.status_code == 200
             data1 = resp1.json()
@@ -452,7 +453,7 @@ async def test_sequential_weather_queries():
             # Second query
             resp2 = await client.post(
                 f"{deployed_job.agents['weather'].url}/query",
-                json={"query": "What is the weather in Paris?"}
+                json={"query": "What is the weather in Paris?"},
             )
             assert resp2.status_code == 200
             data2 = resp2.json()
@@ -509,23 +510,20 @@ async def test_concurrent_queries():
         async def query_weather(client: httpx.AsyncClient) -> dict:
             resp = await client.post(
                 f"{deployed_job.agents['weather'].url}/query",
-                json={"query": "Weather in Tokyo?"}
+                json={"query": "Weather in Tokyo?"},
             )
             return resp.json()
 
         async def query_maps(client: httpx.AsyncClient) -> dict:
             resp = await client.post(
                 f"{deployed_job.agents['maps'].url}/query",
-                json={"query": "Distance from Tokyo to London?"}
+                json={"query": "Distance from Tokyo to London?"},
             )
             return resp.json()
 
         async with httpx.AsyncClient(timeout=60.0) as client:
             # Run both queries concurrently
-            results = await asyncio.gather(
-                query_weather(client),
-                query_maps(client)
-            )
+            results = await asyncio.gather(query_weather(client), query_maps(client))
 
             weather_result, maps_result = results
 
@@ -586,9 +584,7 @@ async def test_agent_discovery_details():
         async with httpx.AsyncClient(timeout=10.0) as client:
             for agent_id, agent in deployed_job.agents.items():
                 # Discover agent
-                resp = await client.get(
-                    f"{agent.url}/.well-known/agent-configuration"
-                )
+                resp = await client.get(f"{agent.url}/.well-known/agent-configuration")
                 assert resp.status_code == 200
 
                 config = resp.json()
@@ -604,7 +600,9 @@ async def test_agent_discovery_details():
                     assert "name" in skill
                     assert "description" in skill
 
-                print(f"[OK] {agent_id}: {config['name']}, {len(config['skills'])} skills")
+                print(
+                    f"[OK] {agent_id}: {config['name']}, {len(config['skills'])} skills"
+                )
 
     finally:
         await deployer.stop(deployed_job)
@@ -694,9 +692,9 @@ async def run_all_scenarios() -> list[ScenarioResult]:
 
     # Summary
     passed = sum(1 for r in results if r.success)
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"SUMMARY: {passed}/{len(results)} scenarios passed")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     return results
 

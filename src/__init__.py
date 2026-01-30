@@ -1,5 +1,33 @@
-"""Source package for claude-code-sdk integration."""
+"""Source package for agentic deployment engine."""
 
-from .base_a2a_agent import BaseA2AAgent
+from .agents import BaseA2AAgent
+from .config import deploy_settings, settings
+from .core import (
+    AgentBackendError,
+    AgentError,
+    ConfigurationError,
+    ConnectionError,
+    DeploymentError,
+    DiscoveryError,
+    SecurityError,
+    TimeoutError,
+    ValidationError,
+)
 
-__all__ = ["BaseA2AAgent"]
+__all__ = [
+    # Core
+    "BaseA2AAgent",
+    # Configuration
+    "settings",
+    "deploy_settings",
+    # Exceptions
+    "AgentError",
+    "AgentBackendError",
+    "ConfigurationError",
+    "ConnectionError",
+    "DeploymentError",
+    "DiscoveryError",
+    "SecurityError",
+    "TimeoutError",
+    "ValidationError",
+]

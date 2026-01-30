@@ -1,58 +1,61 @@
 #!/usr/bin/env python3
 """Start all agents for the Clean MCP + A2A System."""
 
-import subprocess
-import time
-import sys
 import signal
+import subprocess
+import sys
+import time
+
+from .observability import get_logger, setup_logging
+
+logger = get_logger(__name__)
 
 
-def start_agents():
+def start_agents() -> None:
     """Start all agents with SDK integration."""
-    print("🚀 Starting Clean MCP + A2A System with SDK Integration")
-    print("=" * 55)
+    setup_logging(level="INFO")
 
-    processes = []
+    logger.info("Starting Clean MCP + A2A System with SDK Integration")
+
+    processes: list[tuple[str, subprocess.Popen]] = []
 
     try:
         # Start Weather Agent
-        print("\nStarting Weather Agent (port 9001)...")
+        logger.info("Starting Weather Agent (port 9001)...")
         weather = subprocess.Popen(
             ["uv", "run", "weather-agent"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
         )
         processes.append(("Weather Agent", weather))
         time.sleep(3)
 
         # Start Maps Agent
-        print("Starting Maps Agent (port 9002)...")
+        logger.info("Starting Maps Agent (port 9002)...")
         maps = subprocess.Popen(
-            ["uv", "run", "maps-agent"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            ["uv", "run", "maps-agent"], stdout=subprocess.PIPE, stderr=subprocess.PIPE
         )
         processes.append(("Maps Agent", maps))
         time.sleep(3)
 
         # Start Controller Agent
-        print("Starting Controller Agent (port 9000)...")
+        logger.info("Starting Controller Agent (port 9000)...")
         controller = subprocess.Popen(
             ["uv", "run", "controller-agent"],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
         )
         processes.append(("Controller Agent", controller))
         time.sleep(2)
 
-        print("\n🎉 All agents started!")
-        print("\nArchitecture:")
-        print("  Weather Agent (port 9001): SDK MCP server with weather tools")
-        print("  Maps Agent (port 9002): SDK MCP server with maps tools")
-        print("  Controller Agent (port 9000): Coordinates via A2A using curl")
-        print("\nTest with: uv run test-system")
-        print("Stop with: Ctrl+C or pkill -f 'uv run'")
-        print("\nPress Ctrl+C to stop all agents...")
+        logger.info("All agents started successfully")
+        logger.info("Architecture:")
+        logger.info("  Weather Agent (port 9001): SDK MCP server with weather tools")
+        logger.info("  Maps Agent (port 9002): SDK MCP server with maps tools")
+        logger.info("  Controller Agent (port 9000): Coordinates via A2A using curl")
+        logger.info("Test with: uv run test-system")
+        logger.info("Stop with: Ctrl+C or pkill -f 'uv run'")
+        logger.info("Press Ctrl+C to stop all agents...")
 
         # Wait for interrupt
         while True:
@@ -60,21 +63,21 @@ def start_agents():
             # Check if any process has terminated
             for name, proc in processes:
                 if proc.poll() is not None:
-                    print(f"\n⚠️ {name} has stopped unexpectedly")
+                    logger.warning("%s has stopped unexpectedly", name)
                     raise KeyboardInterrupt
 
     except KeyboardInterrupt:
-        print("\n\nShutting down agents...")
+        logger.info("Shutting down agents...")
         for name, proc in processes:
             if proc.poll() is None:  # Process is still running
-                print(f"  Stopping {name}...")
+                logger.info("Stopping %s...", name)
                 proc.terminate()
                 try:
                     proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
-        print("✅ All agents stopped")
+        logger.info("All agents stopped")
         sys.exit(0)
 
 

@@ -26,9 +26,9 @@ async def test_full_integration():
     from src.jobs.resolver import TopologyResolver
 
     # Load and deploy
-    print("\n1. Loading job: jobs/examples/simple-weather.yaml")
+    print("\n1. Loading job: examples/jobs/simple-weather.yaml")
     loader = JobLoader()
-    job = loader.load("jobs/examples/simple-weather.yaml")
+    job = loader.load("examples/jobs/simple-weather.yaml")
     print(f"   ✓ Job: {job.job.name}")
 
     print("\n2. Generating deployment plan...")
@@ -36,7 +36,7 @@ async def test_full_integration():
     plan = resolver.resolve(job)
     print(f"   ✓ Stages: {len(plan.stages)}")
     for idx, stage in enumerate(plan.stages):
-        print(f"     Stage {idx+1}: {', '.join(stage)}")
+        print(f"     Stage {idx + 1}: {', '.join(stage)}")
 
     print("\n3. Deploying agents...")
     deployer = AgentDeployer()
@@ -48,8 +48,7 @@ async def test_full_integration():
     async with httpx.AsyncClient() as client:
         for agent_id, agent in deployed.agents.items():
             response = await client.get(
-                f"{agent.url}/.well-known/agent-configuration",
-                timeout=5.0
+                f"{agent.url}/.well-known/agent-configuration", timeout=5.0
             )
             if response.status_code == 200:
                 config = response.json()
@@ -65,7 +64,7 @@ async def test_full_integration():
         response = await client.post(
             "http://localhost:9000/query",
             json={"query": "What's the weather in Tokyo?"},
-            timeout=30.0
+            timeout=30.0,
         )
 
         if response.status_code == 200:
@@ -79,10 +78,11 @@ async def test_full_integration():
     print("\n6. Checking logs for A2A communication...")
 
     import os
+
     log_files = {
         "controller": "logs/jobs/controller.stdout.log",
         "weather": "logs/jobs/weather.stdout.log",
-        "maps": "logs/jobs/maps.stdout.log"
+        "maps": "logs/jobs/maps.stdout.log",
     }
 
     for agent, log_file in log_files.items():

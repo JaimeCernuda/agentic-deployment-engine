@@ -12,11 +12,8 @@ import json
 import logging
 import os
 import sys
-from io import StringIO
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 
 class TestJSONFormatter:
@@ -24,7 +21,7 @@ class TestJSONFormatter:
 
     def test_formats_basic_record(self) -> None:
         """Should format log record as JSON."""
-        from src.logging_config import JSONFormatter
+        from src.observability.logging import JSONFormatter
 
         formatter = JSONFormatter()
         record = logging.LogRecord(
@@ -34,7 +31,7 @@ class TestJSONFormatter:
             lineno=42,
             msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         result = formatter.format(record)
@@ -48,7 +45,7 @@ class TestJSONFormatter:
 
     def test_formats_message_with_args(self) -> None:
         """Should format message with arguments."""
-        from src.logging_config import JSONFormatter
+        from src.observability.logging import JSONFormatter
 
         formatter = JSONFormatter()
         record = logging.LogRecord(
@@ -58,7 +55,7 @@ class TestJSONFormatter:
             lineno=42,
             msg="Value is %d",
             args=(42,),
-            exc_info=None
+            exc_info=None,
         )
 
         result = formatter.format(record)
@@ -68,7 +65,7 @@ class TestJSONFormatter:
 
     def test_includes_exception_info(self) -> None:
         """Should include exception info when present."""
-        from src.logging_config import JSONFormatter
+        from src.observability.logging import JSONFormatter
 
         formatter = JSONFormatter()
 
@@ -84,7 +81,7 @@ class TestJSONFormatter:
             lineno=42,
             msg="Error occurred",
             args=(),
-            exc_info=exc_info
+            exc_info=exc_info,
         )
 
         result = formatter.format(record)
@@ -96,7 +93,7 @@ class TestJSONFormatter:
 
     def test_includes_extra_fields(self) -> None:
         """Should include extra fields if present."""
-        from src.logging_config import JSONFormatter
+        from src.observability.logging import JSONFormatter
 
         formatter = JSONFormatter()
         record = logging.LogRecord(
@@ -106,7 +103,7 @@ class TestJSONFormatter:
             lineno=42,
             msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         record.extra = {"user_id": 123, "request_id": "abc"}
 
@@ -118,7 +115,7 @@ class TestJSONFormatter:
 
     def test_includes_correlation_id(self) -> None:
         """Should include correlation ID when present."""
-        from src.logging_config import JSONFormatter
+        from src.observability.logging import JSONFormatter
 
         formatter = JSONFormatter()
         record = logging.LogRecord(
@@ -128,7 +125,7 @@ class TestJSONFormatter:
             lineno=42,
             msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
         record.correlation_id = "corr-12345"
 
@@ -139,7 +136,7 @@ class TestJSONFormatter:
 
     def test_handles_non_serializable_objects(self) -> None:
         """Should handle non-JSON-serializable objects."""
-        from src.logging_config import JSONFormatter
+        from src.observability.logging import JSONFormatter
 
         formatter = JSONFormatter()
         record = logging.LogRecord(
@@ -149,7 +146,7 @@ class TestJSONFormatter:
             lineno=42,
             msg="Object: %s",
             args=(object(),),  # Not JSON serializable
-            exc_info=None
+            exc_info=None,
         )
 
         # Should not raise
@@ -163,11 +160,9 @@ class TestConsoleFormatter:
 
     def test_formats_basic_record(self) -> None:
         """Should format log record for console."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
-        formatter = ConsoleFormatter(
-            fmt="%(levelname)s - %(message)s"
-        )
+        formatter = ConsoleFormatter(fmt="%(levelname)s - %(message)s")
         record = logging.LogRecord(
             name="test.logger",
             level=logging.INFO,
@@ -175,7 +170,7 @@ class TestConsoleFormatter:
             lineno=42,
             msg="Test message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         result = formatter.format(record)
@@ -183,11 +178,9 @@ class TestConsoleFormatter:
 
     def test_adds_colors_in_tty(self) -> None:
         """Should add ANSI colors when in TTY."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
-        formatter = ConsoleFormatter(
-            fmt="%(levelname)s - %(message)s"
-        )
+        formatter = ConsoleFormatter(fmt="%(levelname)s - %(message)s")
         record = logging.LogRecord(
             name="test.logger",
             level=logging.ERROR,
@@ -195,22 +188,20 @@ class TestConsoleFormatter:
             lineno=42,
             msg="Error message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         # Mock TTY
-        with patch.object(sys.stderr, 'isatty', return_value=True):
+        with patch.object(sys.stderr, "isatty", return_value=True):
             result = formatter.format(record)
             # Should contain ANSI color codes
             assert "\033[" in result
 
     def test_no_colors_in_non_tty(self) -> None:
         """Should not add colors when not in TTY."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
-        formatter = ConsoleFormatter(
-            fmt="%(levelname)s - %(message)s"
-        )
+        formatter = ConsoleFormatter(fmt="%(levelname)s - %(message)s")
         record = logging.LogRecord(
             name="test.logger",
             level=logging.ERROR,
@@ -218,11 +209,11 @@ class TestConsoleFormatter:
             lineno=42,
             msg="Error message",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         # Mock non-TTY
-        with patch.object(sys.stderr, 'isatty', return_value=False):
+        with patch.object(sys.stderr, "isatty", return_value=False):
             result = formatter.format(record)
             # Should not contain ANSI color codes
             assert "\033[" not in result
@@ -239,7 +230,7 @@ class TestSetupLogging:
 
     def test_sets_log_level(self) -> None:
         """Should set the specified log level."""
-        from src.logging_config import setup_logging
+        from src.observability.logging import setup_logging
 
         with patch.dict(os.environ, {}, clear=True):
             setup_logging(level="DEBUG")
@@ -249,7 +240,7 @@ class TestSetupLogging:
 
     def test_reads_level_from_environment(self) -> None:
         """Should read log level from LOG_LEVEL env var."""
-        from src.logging_config import setup_logging
+        from src.observability.logging import setup_logging
 
         with patch.dict(os.environ, {"LOG_LEVEL": "WARNING"}):
             setup_logging(level="DEBUG")  # Should be overridden
@@ -259,7 +250,7 @@ class TestSetupLogging:
 
     def test_uses_json_format_from_env(self) -> None:
         """Should enable JSON format from LOG_JSON env var."""
-        from src.logging_config import JSONFormatter, setup_logging
+        from src.observability.logging import JSONFormatter, setup_logging
 
         with patch.dict(os.environ, {"LOG_JSON": "true"}, clear=True):
             setup_logging()
@@ -270,7 +261,7 @@ class TestSetupLogging:
 
     def test_creates_file_handler(self, tmp_path: Path) -> None:
         """Should create file handler when log_file specified."""
-        from src.logging_config import setup_logging
+        from src.observability.logging import setup_logging
 
         log_file = tmp_path / "test.log"
 
@@ -278,12 +269,14 @@ class TestSetupLogging:
             setup_logging(log_file=log_file)
 
         root_logger = logging.getLogger()
-        file_handlers = [h for h in root_logger.handlers if isinstance(h, logging.FileHandler)]
+        file_handlers = [
+            h for h in root_logger.handlers if isinstance(h, logging.FileHandler)
+        ]
         assert len(file_handlers) == 1
 
     def test_creates_log_directory(self, tmp_path: Path) -> None:
         """Should create parent directory for log file."""
-        from src.logging_config import setup_logging
+        from src.observability.logging import setup_logging
 
         log_file = tmp_path / "subdir" / "nested" / "test.log"
 
@@ -294,7 +287,7 @@ class TestSetupLogging:
 
     def test_reduces_third_party_noise(self) -> None:
         """Should reduce logging level for noisy libraries."""
-        from src.logging_config import setup_logging
+        from src.observability.logging import setup_logging
 
         with patch.dict(os.environ, {}, clear=True):
             setup_logging(level="DEBUG")
@@ -307,7 +300,7 @@ class TestSetupLogging:
 
     def test_clears_existing_handlers(self) -> None:
         """Should clear existing handlers before setup."""
-        from src.logging_config import setup_logging
+        from src.observability.logging import setup_logging
 
         root_logger = logging.getLogger()
         root_logger.addHandler(logging.StreamHandler())
@@ -327,14 +320,14 @@ class TestGetLogger:
 
     def test_returns_logger_with_name(self) -> None:
         """Should return logger with specified name."""
-        from src.logging_config import get_logger
+        from src.observability.logging import get_logger
 
         logger = get_logger("my.module")
         assert logger.name == "my.module"
 
     def test_returns_same_logger_for_same_name(self) -> None:
         """Should return same logger instance for same name."""
-        from src.logging_config import get_logger
+        from src.observability.logging import get_logger
 
         logger1 = get_logger("test.logger")
         logger2 = get_logger("test.logger")
@@ -346,7 +339,7 @@ class TestLoggerAdapter:
 
     def test_init_with_correlation_id(self) -> None:
         """Should initialize with correlation ID."""
-        from src.logging_config import LoggerAdapter
+        from src.observability.logging import LoggerAdapter
 
         base_logger = logging.getLogger("test")
         adapter = LoggerAdapter(base_logger, "corr-123")
@@ -355,7 +348,7 @@ class TestLoggerAdapter:
 
     def test_adds_correlation_id_to_logs(self) -> None:
         """Should add correlation ID to log records."""
-        from src.logging_config import LoggerAdapter
+        from src.observability.logging import LoggerAdapter
 
         base_logger = logging.getLogger("test.adapter")
         adapter = LoggerAdapter(base_logger, "corr-456")
@@ -366,7 +359,7 @@ class TestLoggerAdapter:
 
     def test_preserves_existing_extra(self) -> None:
         """Should preserve existing extra fields."""
-        from src.logging_config import LoggerAdapter
+        from src.observability.logging import LoggerAdapter
 
         base_logger = logging.getLogger("test.adapter")
         adapter = LoggerAdapter(base_logger, "corr-789")
@@ -382,35 +375,35 @@ class TestConsoleFormatterColors:
 
     def test_debug_color_cyan(self) -> None:
         """DEBUG level should use cyan color."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
         formatter = ConsoleFormatter(fmt="%(levelname)s")
         assert formatter.COLORS["DEBUG"] == "\033[36m"
 
     def test_info_color_green(self) -> None:
         """INFO level should use green color."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
         formatter = ConsoleFormatter(fmt="%(levelname)s")
         assert formatter.COLORS["INFO"] == "\033[32m"
 
     def test_warning_color_yellow(self) -> None:
         """WARNING level should use yellow color."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
         formatter = ConsoleFormatter(fmt="%(levelname)s")
         assert formatter.COLORS["WARNING"] == "\033[33m"
 
     def test_error_color_red(self) -> None:
         """ERROR level should use red color."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
         formatter = ConsoleFormatter(fmt="%(levelname)s")
         assert formatter.COLORS["ERROR"] == "\033[31m"
 
     def test_critical_color_magenta(self) -> None:
         """CRITICAL level should use magenta color."""
-        from src.logging_config import ConsoleFormatter
+        from src.observability.logging import ConsoleFormatter
 
         formatter = ConsoleFormatter(fmt="%(levelname)s")
         assert formatter.COLORS["CRITICAL"] == "\033[35m"
@@ -421,7 +414,7 @@ class TestJSONFormatterTimestamp:
 
     def test_timestamp_is_iso_format(self) -> None:
         """Timestamp should be in ISO 8601 format."""
-        from src.logging_config import JSONFormatter
+        from src.observability.logging import JSONFormatter
 
         formatter = JSONFormatter()
         record = logging.LogRecord(
@@ -431,7 +424,7 @@ class TestJSONFormatterTimestamp:
             lineno=1,
             msg="Test",
             args=(),
-            exc_info=None
+            exc_info=None,
         )
 
         result = formatter.format(record)
@@ -453,7 +446,7 @@ class TestSetupLoggingEdgeCases:
 
     def test_invalid_log_level_defaults_to_info(self) -> None:
         """Should default to INFO for invalid log level."""
-        from src.logging_config import setup_logging
+        from src.observability.logging import setup_logging
 
         with patch.dict(os.environ, {"LOG_LEVEL": "INVALID"}):
             setup_logging()
@@ -463,7 +456,7 @@ class TestSetupLoggingEdgeCases:
 
     def test_json_format_parameter(self) -> None:
         """Should use JSON format when parameter is True."""
-        from src.logging_config import JSONFormatter, setup_logging
+        from src.observability.logging import JSONFormatter, setup_logging
 
         with patch.dict(os.environ, {}, clear=True):
             setup_logging(json_format=True)
@@ -474,7 +467,7 @@ class TestSetupLoggingEdgeCases:
 
     def test_log_json_env_values(self) -> None:
         """Should recognize various truthy values for LOG_JSON."""
-        from src.logging_config import JSONFormatter, setup_logging
+        from src.observability.logging import JSONFormatter, setup_logging
 
         for value in ["true", "1", "yes", "TRUE", "YES"]:
             root_logger = logging.getLogger()
@@ -484,4 +477,6 @@ class TestSetupLoggingEdgeCases:
                 setup_logging()
 
             console_handler = root_logger.handlers[0]
-            assert isinstance(console_handler.formatter, JSONFormatter), f"Failed for {value}"
+            assert isinstance(console_handler.formatter, JSONFormatter), (
+                f"Failed for {value}"
+            )

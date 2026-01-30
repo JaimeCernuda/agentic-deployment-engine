@@ -1,4 +1,5 @@
 """Test the real weather agent with HTTP requests."""
+
 import asyncio
 import sys
 from pathlib import Path
@@ -10,6 +11,7 @@ pytestmark = [pytest.mark.usability, pytest.mark.slow]
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
+
 
 async def test_weather_agent():
     """Test weather agent via HTTP API."""
@@ -38,7 +40,7 @@ async def test_weather_agent():
             config = response.json()
             print(f"✓ Name: {config['name']}")
             print(f"✓ Skills: {len(config['skills'])} skill(s)")
-            for skill in config['skills']:
+            for skill in config["skills"]:
                 print(f"  - {skill['name']}: {skill['description']}")
         except Exception as e:
             print(f"✗ Failed: {e}")
@@ -49,13 +51,13 @@ async def test_weather_agent():
         try:
             response = await client.post(
                 f"{base_url}/query",
-                json={"query": "What weather locations are available?"}
+                json={"query": "What weather locations are available?"},
             )
             result = response.json()
             print(f"✓ Response: {result['response']}")
 
             # Check if response contains actual cities from tool
-            if "Tokyo" in result['response'] and "London" in result['response']:
+            if "Tokyo" in result["response"] and "London" in result["response"]:
                 print("✅ VERIFIED: Response contains cities from MCP tool!")
             else:
                 print("⚠️  WARNING: Response may not be from MCP tool")
@@ -67,15 +69,16 @@ async def test_weather_agent():
         print("   Expected: Should call mcp__weather_agent__get_weather")
         try:
             response = await client.post(
-                f"{base_url}/query",
-                json={"query": "What's the weather in Tokyo?"}
+                f"{base_url}/query", json={"query": "What's the weather in Tokyo?"}
             )
             result = response.json()
             print(f"✓ Response: {result['response']}")
 
             # Check if response contains actual weather data from tool
-            if "22.5" in result['response'] or "Partly cloudy" in result['response']:
-                print("✅ VERIFIED: Response contains exact weather data from MCP tool!")
+            if "22.5" in result["response"] or "Partly cloudy" in result["response"]:
+                print(
+                    "✅ VERIFIED: Response contains exact weather data from MCP tool!"
+                )
                 print("   (Tokyo mock data: 22.5°C, Partly cloudy)")
             else:
                 print("⚠️  WARNING: Response may not be using MCP tool data")
@@ -89,14 +92,16 @@ async def test_weather_agent():
         try:
             response = await client.post(
                 f"{base_url}/query",
-                json={"query": "What's the current weather in London?"}
+                json={"query": "What's the current weather in London?"},
             )
             result = response.json()
             print(f"✓ Response: {result['response']}")
 
             # Check for London-specific mock data
-            if "15.2" in result['response'] or "Light rain" in result['response']:
-                print("✅ VERIFIED: Response contains exact London weather from MCP tool!")
+            if "15.2" in result["response"] or "Light rain" in result["response"]:
+                print(
+                    "✅ VERIFIED: Response contains exact London weather from MCP tool!"
+                )
                 print("   (London mock data: 15.2°C, Light rain)")
             else:
                 print("⚠️  WARNING: Response may not be using MCP tool data")
@@ -112,6 +117,7 @@ async def test_weather_agent():
     print("  - 'Tool: mcp__weather_agent__get_locations'")
     print("These confirm MCP tools are being called.")
     print("=" * 60)
+
 
 if __name__ == "__main__":
     asyncio.run(test_weather_agent())

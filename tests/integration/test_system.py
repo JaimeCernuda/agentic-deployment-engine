@@ -7,6 +7,7 @@ import asyncio
 
 import httpx
 import pytest
+
 pytestmark = pytest.mark.integration
 
 
@@ -27,13 +28,15 @@ async def test_a2a_agents():
         agents = [
             ("Weather Agent", "http://localhost:9001"),
             ("Maps Agent", "http://localhost:9002"),
-            ("Controller Agent", "http://localhost:9000")
+            ("Controller Agent", "http://localhost:9000"),
         ]
 
         for name, url in agents:
             try:
                 # Test agent discovery
-                config_response = await client.get(f"{url}/.well-known/agent-configuration")
+                config_response = await client.get(
+                    f"{url}/.well-known/agent-configuration"
+                )
                 if config_response.status_code == 200:
                     config = config_response.json()
                     print(f"✅ {name}: {config['description']}")
@@ -54,20 +57,23 @@ async def test_queries():
         queries = [
             ("Weather Agent", "http://localhost:9001", "What's the weather in Tokyo?"),
             ("Maps Agent", "http://localhost:9002", "How far is Tokyo from London?"),
-            ("Controller Agent", "http://localhost:9000", "What's the weather in Tokyo and how far is it from London?")
+            (
+                "Controller Agent",
+                "http://localhost:9000",
+                "What's the weather in Tokyo and how far is it from London?",
+            ),
         ]
 
         for name, url, query in queries:
             try:
-                response = await client.post(
-                    f"{url}/query",
-                    json={"query": query}
-                )
+                response = await client.post(f"{url}/query", json={"query": query})
                 if response.status_code == 200:
                     result = response.json()
                     print(f"✅ {name}")
                     print(f"   Query: {query}")
-                    print(f"   Response: {result.get('response', 'No response')[:100]}...")
+                    print(
+                        f"   Response: {result.get('response', 'No response')[:100]}..."
+                    )
                 else:
                     print(f"❌ {name} query failed: {response.status_code}")
 

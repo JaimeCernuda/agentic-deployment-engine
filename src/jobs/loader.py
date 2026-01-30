@@ -1,13 +1,15 @@
 """Job loader - Parse and validate job definitions."""
 
 import importlib
+import logging
 from pathlib import Path
-from typing import Optional
 
 import yaml
 from pydantic import ValidationError
 
 from .models import JobDefinition
+
+logger = logging.getLogger(__name__)
 
 
 class JobLoadError(Exception):
@@ -86,9 +88,7 @@ class JobLoader:
                         f"Agent type '{agent.type}' not found in module '{agent.module}'"
                     )
             except ImportError as e:
-                raise JobLoadError(
-                    f"Cannot import agent module '{agent.module}': {e}"
-                )
+                raise JobLoadError(f"Cannot import agent module '{agent.module}': {e}")
 
     def _validate_topology_references(self, job: JobDefinition) -> None:
         """Validate that topology references valid agent IDs.
@@ -192,9 +192,7 @@ class JobLoader:
                     graph[from_id].add(to_id)
 
             # Check for cycles using DFS
-            def has_cycle(
-                node: str, visited: set[str], rec_stack: set[str]
-            ) -> bool:
+            def has_cycle(node: str, visited: set[str], rec_stack: set[str]) -> bool:
                 visited.add(node)
                 rec_stack.add(node)
 
@@ -270,9 +268,10 @@ class JobLoader:
 
                 # Warn if using password (not recommended)
                 if deployment.password:
-                    print(
-                        f"WARNING: Agent {agent.id} using password authentication. "
-                        "SSH keys are recommended for security."
+                    logger.warning(
+                        "Agent %s using password authentication. "
+                        "SSH keys are recommended for security.",
+                        agent.id,
                     )
 
             # Validate container deployment
@@ -289,7 +288,7 @@ class JobLoader:
                         f"Agent {agent.id}: Kubernetes deployment requires 'namespace'"
                     )
 
-    def validate_only(self, yaml_path: str | Path) -> Optional[str]:
+    def validate_only(self, yaml_path: str | Path) -> str | None:
         """Validate job file and return error message if invalid.
 
         Args:

@@ -3,15 +3,16 @@
 Unit tests for individual components.
 """
 
-import pytest
-from pathlib import Path
 import sys
+from pathlib import Path
+
+import pytest
 
 # Add parent directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from tools.weather_tools import get_weather, get_locations, WEATHER_DATA
-from tools.maps_tools import get_distance, get_cities, CITY_COORDINATES
+from examples.tools.maps_tools import CITY_COORDINATES, get_cities, get_distance
+from examples.tools.weather_tools import WEATHER_DATA, get_locations, get_weather
 
 # Extract handlers from SDK tools
 get_weather_handler = get_weather.handler
@@ -39,7 +40,9 @@ class TestWeatherTools:
     @pytest.mark.asyncio
     async def test_get_weather_invalid_location(self):
         """Test getting weather for invalid location."""
-        result = await get_weather_handler({"location": "InvalidCity", "units": "metric"})
+        result = await get_weather_handler(
+            {"location": "InvalidCity", "units": "metric"}
+        )
 
         assert "content" in result
         text = result["content"][0]["text"]
@@ -73,11 +76,9 @@ class TestMapsTools:
     @pytest.mark.asyncio
     async def test_get_distance_tokyo_london(self):
         """Test distance calculation between Tokyo and London."""
-        result = await get_distance_handler({
-            "origin": "Tokyo",
-            "destination": "London",
-            "units": "km"
-        })
+        result = await get_distance_handler(
+            {"origin": "Tokyo", "destination": "London", "units": "km"}
+        )
 
         assert "content" in result
         text = result["content"][0]["text"]
@@ -88,11 +89,9 @@ class TestMapsTools:
     @pytest.mark.asyncio
     async def test_get_distance_invalid_origin(self):
         """Test distance with invalid origin."""
-        result = await get_distance_handler({
-            "origin": "InvalidCity",
-            "destination": "London",
-            "units": "km"
-        })
+        result = await get_distance_handler(
+            {"origin": "InvalidCity", "destination": "London", "units": "km"}
+        )
 
         text = result["content"][0]["text"]
         assert "not found" in text.lower()
@@ -100,11 +99,9 @@ class TestMapsTools:
     @pytest.mark.asyncio
     async def test_get_distance_miles(self):
         """Test distance calculation in miles."""
-        result = await get_distance_handler({
-            "origin": "New York",
-            "destination": "Paris",
-            "units": "miles"
-        })
+        result = await get_distance_handler(
+            {"origin": "New York", "destination": "Paris", "units": "miles"}
+        )
 
         text = result["content"][0]["text"]
         assert "miles" in text
@@ -133,8 +130,9 @@ class TestDataConsistency:
         maps_cities = set(city.lower() for city in CITY_COORDINATES.keys())
 
         # All weather cities should have coordinates
-        assert weather_cities.issubset(maps_cities), \
+        assert weather_cities.issubset(maps_cities), (
             f"Weather cities missing coordinates: {weather_cities - maps_cities}"
+        )
 
     def test_city_count(self):
         """Test that we have expected number of cities."""

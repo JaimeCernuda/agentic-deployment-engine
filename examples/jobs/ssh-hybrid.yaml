@@ -1,0 +1,90 @@
+# Hybrid Deployment - Local + Remote
+# Pattern: Hub-and-Spoke with some agents local, some on homelab
+# Use case: Test cross-machine A2A communication
+
+job:
+  name: hybrid-local-remote
+  version: 1.0.0
+  description: Controller local, workers on homelab - tests cross-machine A2A
+  tags:
+    - ssh
+    - hybrid
+    - homelab
+    - cross-machine
+    - testing
+
+agents:
+  # Weather service on homelab
+  - id: weather
+    type: WeatherAgent
+    module: agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent
+      # Remote host binding - accessible from local machine
+      host: 0.0.0.0
+    deployment:
+      target: remote
+      host: homelab
+      workdir: ~/agent-deploy/weather
+      python: python3
+
+  # Maps service stays local
+  - id: maps
+    type: MapsAgent
+    module: agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent
+    deployment:
+      target: localhost
+
+  # Controller stays local
+  - id: controller
+    type: ControllerAgent
+    module: agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost
+
+# Hub-and-spoke topology with cross-machine connections
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+  # Explicit connections for cross-machine
+  connections:
+    - from: controller
+      to: weather
+      # weather is on homelab, need its reachable address
+      address: homelab:9001
+    - from: controller
+      to: maps
+      address: localhost:9002
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 60
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 5
+
+  ssh:
+    timeout: 30
+
+  network:
+    allow_cross_host: true
+
+execution:
+  entry_point: controller
+  auto_start: true
+
+environment:
+  DEPLOYMENT_ENV: testing
+  LOG_LEVEL: DEBUG

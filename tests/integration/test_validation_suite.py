@@ -65,7 +65,9 @@ def test_validation_suite():
             print(f"✗ {filename:30s} - Error: {str(e)[:50]}")
             results["failed"] += 1
 
-    print(f"\nResults: {results['passed']} passed, {results['failed']} failed, {results['skipped']} skipped")
+    print(
+        f"\nResults: {results['passed']} passed, {results['failed']} failed, {results['skipped']} skipped"
+    )
 
     # Test 2: Topology Patterns
     print_section("TEST 2: Topology Patterns")

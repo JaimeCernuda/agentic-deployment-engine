@@ -10,8 +10,6 @@ Tests all CLI commands:
 - logs: Log viewing
 """
 
-import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -387,9 +385,7 @@ class TestStatusCommand:
             assert result.exit_code == 1
             assert "not found" in result.stdout.lower()
 
-    def test_status_running_job_shows_info(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_status_running_job_shows_info(self, mock_job_state: JobState) -> None:
         """Status for running job should show info."""
         with patch("src.jobs.cli.get_registry") as mock_get_registry:
             mock_registry = MagicMock()
@@ -405,9 +401,7 @@ class TestStatusCommand:
             assert result.exit_code == 0
             assert "test-job" in result.stdout
 
-    def test_status_shows_agent_details(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_status_shows_agent_details(self, mock_job_state: JobState) -> None:
         """Status should show agent URL and PID."""
         with patch("src.jobs.cli.get_registry") as mock_get_registry:
             mock_registry = MagicMock()
@@ -465,9 +459,7 @@ class TestStopCommand:
             assert result.exit_code == 0
             assert "not running" in result.stdout.lower()
 
-    def test_stop_running_job_kills_processes(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_stop_running_job_kills_processes(self, mock_job_state: JobState) -> None:
         """Stop should kill running agent processes."""
         with (
             patch("src.jobs.cli.get_registry") as mock_get_registry,
@@ -483,10 +475,10 @@ class TestStopCommand:
             # os.kill should have been called with the agent PID
             mock_kill.assert_called()
 
-    @pytest.mark.skipif(sys.platform == "win32", reason="SIGKILL not available on Windows")
-    def test_stop_force_uses_sigkill(
-        self, mock_job_state: JobState
-    ) -> None:
+    @pytest.mark.skipif(
+        sys.platform == "win32", reason="SIGKILL not available on Windows"
+    )
+    def test_stop_force_uses_sigkill(self, mock_job_state: JobState) -> None:
         """Stop with --force should use SIGKILL."""
         import signal
 
@@ -504,9 +496,7 @@ class TestStopCommand:
             # Should have used SIGKILL
             mock_kill.assert_called_with(12345, signal.SIGKILL)
 
-    def test_stop_handles_process_not_found(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_stop_handles_process_not_found(self, mock_job_state: JobState) -> None:
         """Stop should handle ProcessLookupError gracefully."""
         with (
             patch("src.jobs.cli.get_registry") as mock_get_registry,
@@ -522,9 +512,7 @@ class TestStopCommand:
             assert result.exit_code == 0
             assert "already stopped" in result.stdout.lower()
 
-    def test_stop_handles_permission_error(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_stop_handles_permission_error(self, mock_job_state: JobState) -> None:
         """Stop should handle PermissionError gracefully."""
         with (
             patch("src.jobs.cli.get_registry") as mock_get_registry,
@@ -561,9 +549,7 @@ class TestListCommand:
             assert result.exit_code == 0
             assert "no" in result.stdout.lower()
 
-    def test_list_shows_running_jobs_by_default(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_list_shows_running_jobs_by_default(self, mock_job_state: JobState) -> None:
         """List should show running jobs by default."""
         with patch("src.jobs.cli.get_registry") as mock_get_registry:
             mock_registry = MagicMock()
@@ -575,9 +561,7 @@ class TestListCommand:
             assert result.exit_code == 0
             mock_registry.list_jobs.assert_called_with(status="running", limit=20)
 
-    def test_list_all_shows_all_jobs(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_list_all_shows_all_jobs(self, mock_job_state: JobState) -> None:
         """List with --all should show all jobs."""
         with patch("src.jobs.cli.get_registry") as mock_get_registry:
             mock_registry = MagicMock()
@@ -600,9 +584,7 @@ class TestListCommand:
 
             mock_registry.list_jobs.assert_called_with(status="running", limit=5)
 
-    def test_list_shows_job_details(
-        self, mock_job_state: JobState
-    ) -> None:
+    def test_list_shows_job_details(self, mock_job_state: JobState) -> None:
         """List should show job ID, status, and agent count."""
         with patch("src.jobs.cli.get_registry") as mock_get_registry:
             mock_registry = MagicMock()

@@ -28,7 +28,9 @@ from src.jobs.models import (
 from src.jobs.resolver import TopologyResolver
 
 
-def make_agent(agent_id: str, port: int, target: str = "localhost", **kwargs) -> AgentConfig:
+def make_agent(
+    agent_id: str, port: int, target: str = "localhost", **kwargs
+) -> AgentConfig:
     """Helper to create agent config."""
     deployment_kwargs = {"target": target}
     deployment_kwargs.update(kwargs)
@@ -304,9 +306,7 @@ class TestURLResolution:
         """Container deployment URL with custom name."""
         job = make_job(
             agents=[
-                make_agent(
-                    "agent", 9001, "container", container_name="my-container"
-                )
+                make_agent("agent", 9001, "container", container_name="my-container")
             ],
             topology=TopologyConfig(type="mesh", agents=["agent"]),
         )
@@ -338,10 +338,7 @@ class TestURLResolution:
         resolver = TopologyResolver()
         plan = resolver.resolve(job)
 
-        assert (
-            plan.agent_urls["agent"]
-            == "http://agent.prod.svc.cluster.local:9001"
-        )
+        assert plan.agent_urls["agent"] == "http://agent.prod.svc.cluster.local:9001"
 
     def test_kubernetes_url_default_namespace(self) -> None:
         """Kubernetes with default namespace."""
@@ -353,10 +350,7 @@ class TestURLResolution:
         resolver = TopologyResolver()
         plan = resolver.resolve(job)
 
-        assert (
-            plan.agent_urls["agent"]
-            == "http://agent.default.svc.cluster.local:9001"
-        )
+        assert plan.agent_urls["agent"] == "http://agent.default.svc.cluster.local:9001"
 
 
 class TestHubSpokeConnections:

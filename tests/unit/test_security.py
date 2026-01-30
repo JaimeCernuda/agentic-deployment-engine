@@ -15,13 +15,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.a2a_transport import discover_agent, is_safe_url, query_agent
+from src.agents.transport import discover_agent, is_safe_url, query_agent
 
 # The @tool decorator wraps the function - get the actual handler
 query_agent_handler = query_agent.handler
 discover_agent_handler = discover_agent.handler
-from src.agent_registry import sanitize_prompt_text
-from src.auth import (
+from src.agents.registry import sanitize_prompt_text
+from src.security.auth import (
     get_api_key,
     hash_api_key,
     verify_api_key,

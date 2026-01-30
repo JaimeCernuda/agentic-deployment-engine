@@ -28,14 +28,14 @@ async def test_complete_system():
 
     # Test 1: Local Deployment
     print_section("TEST 1: Local Deployment (subprocess)")
-    print("Testing: jobs/examples/simple-weather.yaml")
+    print("Testing: examples/jobs/simple-weather.yaml")
 
     from src.jobs.deployer import AgentDeployer
     from src.jobs.loader import JobLoader
     from src.jobs.resolver import TopologyResolver
 
     loader = JobLoader()
-    job = loader.load("jobs/examples/simple-weather.yaml")
+    job = loader.load("examples/jobs/simple-weather.yaml")
     print(f"✓ Loaded: {job.job.name}")
     print(f"  - Agents: {len(job.agents)}")
     print(f"  - Topology: {job.topology.type}")
@@ -54,11 +54,14 @@ async def test_complete_system():
 
     # Health check
     import httpx
+
     print("✓ Health checks:")
     async with httpx.AsyncClient() as client:
         for agent_id, agent in deployed.agents.items():
             try:
-                resp = await client.get(f"{agent.url}/.well-known/agent-configuration", timeout=5)
+                resp = await client.get(
+                    f"{agent.url}/.well-known/agent-configuration", timeout=5
+                )
                 status = "✓" if resp.status_code == 200 else "✗"
                 print(f"  {status} {agent_id} ({agent.url})")
             except Exception as e:
@@ -71,12 +74,16 @@ async def test_complete_system():
 
     # Test 2: SSH Deployment Validation
     print_section("TEST 2: SSH Deployment Validation")
-    print("Testing: jobs/examples/ssh-localhost.yaml")
+    print("Testing: examples/jobs/ssh-localhost.yaml")
 
-    ssh_job = loader.load("jobs/examples/ssh-localhost.yaml")
+    ssh_job = loader.load("examples/jobs/ssh-localhost.yaml")
     print(f"✓ Loaded: {ssh_job.job.name}")
-    print(f"  - Remote agents: {sum(1 for a in ssh_job.agents if a.deployment.target == 'remote')}")
-    print(f"  - Local agents: {sum(1 for a in ssh_job.agents if a.deployment.target == 'localhost')}")
+    print(
+        f"  - Remote agents: {sum(1 for a in ssh_job.agents if a.deployment.target == 'remote')}"
+    )
+    print(
+        f"  - Local agents: {sum(1 for a in ssh_job.agents if a.deployment.target == 'localhost')}"
+    )
 
     ssh_plan = resolver.resolve(ssh_job)
     print(f"✓ Plan generated: {len(ssh_plan.stages)} stages")
@@ -103,11 +110,13 @@ async def test_complete_system():
 
     for filename, description in examples:
         try:
-            job_path = f"jobs/examples/{filename}"
+            job_path = f"examples/jobs/{filename}"
             if Path(job_path).exists():
                 test_job = loader.load(job_path)
                 test_plan = resolver.resolve(test_job)
-                print(f"✓ {filename:30s} - {description:20s} ({len(test_plan.stages)} stages)")
+                print(
+                    f"✓ {filename:30s} - {description:20s} ({len(test_plan.stages)} stages)"
+                )
             else:
                 print(f"⊘ {filename:30s} - File not found")
         except Exception as e:

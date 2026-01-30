@@ -16,8 +16,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.a2a_transport import discover_agent, is_safe_url, query_agent
-from src.agent_registry import AgentRegistry
+from src.agents.transport import discover_agent, is_safe_url, query_agent
+from src.agents.registry import AgentRegistry
 
 # The @tool decorator wraps the function - get the actual handler
 query_agent_handler = query_agent.handler
@@ -190,7 +190,7 @@ class TestAgentRegistryErrors:
 
         async def mock_discover(url: str):
             if "good" in url:
-                from src.agent_registry import AgentInfo
+                from src.agents.registry import AgentInfo
 
                 return AgentInfo(url, {"name": "Good Agent"})
             return None

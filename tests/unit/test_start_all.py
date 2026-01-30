@@ -5,9 +5,7 @@ Note: Full integration testing of the startup loop is covered by usability tests
 """
 
 import subprocess
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import MagicMock
 
 
 class TestSubprocessConfiguration:
@@ -106,16 +104,19 @@ class TestModuleImports:
     def test_can_import_start_all(self) -> None:
         """Should be able to import start_all module."""
         from src import start_all
+
         assert start_all is not None
 
     def test_start_agents_function_exists(self) -> None:
         """start_agents function should exist."""
         from src.start_all import start_agents
+
         assert callable(start_agents)
 
     def test_main_function_exists(self) -> None:
         """main function should exist."""
         from src.start_all import main
+
         assert callable(main)
 
 
@@ -192,11 +193,11 @@ class TestSignalHandling:
     def test_sigint_constant_exists(self) -> None:
         """SIGINT constant should be available."""
         import signal
+
         assert hasattr(signal, "SIGINT")
 
     def test_signal_handler_can_be_lambda(self) -> None:
         """Signal handler can be a lambda."""
-        import signal
         handler = lambda s, f: None
         assert callable(handler)
 

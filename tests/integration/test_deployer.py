@@ -7,12 +7,10 @@ Tests all deployer components:
 - AgentDeployer: Orchestrated deployment
 """
 
-import asyncio
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import paramiko
@@ -23,7 +21,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from src.jobs.deployer import (
     AgentDeployer,
-    AgentRunner,
     DeploymentError,
     LocalRunner,
     RemoteProcess,
@@ -41,7 +38,6 @@ from src.jobs.models import (
     JobMetadata,
     TopologyConfig,
 )
-
 
 # ============================================================================
 # Test Fixtures
@@ -392,7 +388,10 @@ class TestSSHRunner:
         assert "host" in str(exc_info.value).lower()
 
     def test_get_ssh_client_reuses_connection(
-        self, tmp_path: Path, remote_agent_config: AgentConfig, mock_ssh_client: MagicMock
+        self,
+        tmp_path: Path,
+        remote_agent_config: AgentConfig,
+        mock_ssh_client: MagicMock,
     ) -> None:
         """_get_ssh_client() should reuse existing connections."""
         runner = SSHRunner(project_root=tmp_path)
@@ -470,7 +469,10 @@ class TestSSHRunner:
 
     @pytest.mark.asyncio
     async def test_start_uses_shlex_quote_for_env(
-        self, tmp_path: Path, remote_agent_config: AgentConfig, mock_ssh_client: MagicMock
+        self,
+        tmp_path: Path,
+        remote_agent_config: AgentConfig,
+        mock_ssh_client: MagicMock,
     ) -> None:
         """start() should use shlex.quote for shell injection prevention."""
         runner = SSHRunner(project_root=tmp_path)
@@ -496,7 +498,10 @@ class TestSSHRunner:
 
     @pytest.mark.asyncio
     async def test_start_returns_remote_process(
-        self, tmp_path: Path, remote_agent_config: AgentConfig, mock_ssh_client: MagicMock
+        self,
+        tmp_path: Path,
+        remote_agent_config: AgentConfig,
+        mock_ssh_client: MagicMock,
     ) -> None:
         """start() should return a RemoteProcess on success."""
         runner = SSHRunner(project_root=tmp_path)
@@ -529,7 +534,10 @@ class TestSSHRunner:
 
     @pytest.mark.asyncio
     async def test_start_raises_on_process_death(
-        self, tmp_path: Path, remote_agent_config: AgentConfig, mock_ssh_client: MagicMock
+        self,
+        tmp_path: Path,
+        remote_agent_config: AgentConfig,
+        mock_ssh_client: MagicMock,
     ) -> None:
         """start() should raise if process dies immediately."""
         runner = SSHRunner(project_root=tmp_path)
@@ -663,7 +671,10 @@ class TestAgentDeployer:
 
     @pytest.mark.asyncio
     async def test_deploy_unknown_target_raises(
-        self, tmp_path: Path, job_definition: JobDefinition, deployment_plan: DeploymentPlan
+        self,
+        tmp_path: Path,
+        job_definition: JobDefinition,
+        deployment_plan: DeploymentPlan,
     ) -> None:
         """deploy() should raise for unknown deployment target."""
         deployer = AgentDeployer(project_root=tmp_path)
@@ -675,9 +686,7 @@ class TestAgentDeployer:
         assert "runner" in str(exc_info.value).lower()
 
     @pytest.mark.asyncio
-    async def test_deploy_cleans_up_on_failure(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_deploy_cleans_up_on_failure(self, tmp_path: Path) -> None:
         """deploy() should cleanup deployed agents on failure."""
         deployer = AgentDeployer(project_root=tmp_path)
 
@@ -728,6 +737,7 @@ class TestAgentDeployer:
         deployer.runners["localhost"] = mock_runner
 
         call_count = 0
+
         async def mock_health(url, agent_id, timeout, retries):
             nonlocal call_count
             call_count += 1
@@ -743,7 +753,10 @@ class TestAgentDeployer:
 
     @pytest.mark.asyncio
     async def test_deploy_successful_returns_deployed_job(
-        self, tmp_path: Path, job_definition: JobDefinition, deployment_plan: DeploymentPlan
+        self,
+        tmp_path: Path,
+        job_definition: JobDefinition,
+        deployment_plan: DeploymentPlan,
     ) -> None:
         """deploy() should return DeployedJob on success."""
         deployer = AgentDeployer(project_root=tmp_path)

@@ -2,7 +2,7 @@
 
 import pytest
 
-from src.permissions import (
+from src.security.permissions import (
     PRESET_ALLOWED_PATTERNS,
     TOOL_CATEGORIES,
     PermissionPreset,
@@ -153,12 +153,18 @@ class TestIsToolAllowed:
         assert is_tool_allowed("Glob", PermissionPreset.READ_ONLY)
         assert is_tool_allowed("mcp__agent__discover_agent", PermissionPreset.READ_ONLY)
         assert not is_tool_allowed("Write", PermissionPreset.READ_ONLY)
-        assert not is_tool_allowed("mcp__agent__query_agent", PermissionPreset.READ_ONLY)
+        assert not is_tool_allowed(
+            "mcp__agent__query_agent", PermissionPreset.READ_ONLY
+        )
 
     def test_communication_only_allows_comms_tools(self) -> None:
         """COMMUNICATION_ONLY should allow only communication tools."""
-        assert is_tool_allowed("mcp__controller__query_agent", PermissionPreset.COMMUNICATION_ONLY)
-        assert is_tool_allowed("mcp__controller__discover_agent", PermissionPreset.COMMUNICATION_ONLY)
+        assert is_tool_allowed(
+            "mcp__controller__query_agent", PermissionPreset.COMMUNICATION_ONLY
+        )
+        assert is_tool_allowed(
+            "mcp__controller__discover_agent", PermissionPreset.COMMUNICATION_ONLY
+        )
         assert not is_tool_allowed("Read", PermissionPreset.COMMUNICATION_ONLY)
         assert not is_tool_allowed("Bash", PermissionPreset.COMMUNICATION_ONLY)
 
@@ -166,7 +172,9 @@ class TestIsToolAllowed:
         """CUSTOM should allow only specified tools."""
         custom = ["my_tool", "query_agent"]
         assert is_tool_allowed("my_tool", PermissionPreset.CUSTOM, custom)
-        assert is_tool_allowed("mcp__agent__query_agent", PermissionPreset.CUSTOM, custom)
+        assert is_tool_allowed(
+            "mcp__agent__query_agent", PermissionPreset.CUSTOM, custom
+        )
         assert not is_tool_allowed("other_tool", PermissionPreset.CUSTOM, custom)
 
 
@@ -245,7 +253,11 @@ class TestCreatePermissionHandler:
         """COMMUNICATION_ONLY handler should allow query_agent."""
         handler = await create_permission_handler(PermissionPreset.COMMUNICATION_ONLY)
 
-        query_result = await handler("mcp__controller__query_agent", {"agent_url": "http://localhost:9001", "query": "test"}, {})
+        query_result = await handler(
+            "mcp__controller__query_agent",
+            {"agent_url": "http://localhost:9001", "query": "test"},
+            {},
+        )
         assert query_result.allowed is True
 
     async def test_communication_handler_denies_read(self) -> None:
@@ -258,8 +270,7 @@ class TestCreatePermissionHandler:
     async def test_custom_handler_with_rules(self) -> None:
         """CUSTOM handler should respect custom rules."""
         handler = await create_permission_handler(
-            PermissionPreset.CUSTOM,
-            custom_rules=["my_special_tool", "query_agent"]
+            PermissionPreset.CUSTOM, custom_rules=["my_special_tool", "query_agent"]
         )
 
         special_result = await handler("my_special_tool", {}, {})
@@ -288,7 +299,9 @@ class TestIntegrationScenarios:
             "mcp__controller_agent__query_agent",
             "mcp__controller_agent__discover_agent",
         ]
-        filtered = filter_allowed_tools(controller_tools, PermissionPreset.COMMUNICATION_ONLY)
+        filtered = filter_allowed_tools(
+            controller_tools, PermissionPreset.COMMUNICATION_ONLY
+        )
         assert len(filtered) == 2
         assert "mcp__controller_agent__query_agent" in filtered
         assert "mcp__controller_agent__discover_agent" in filtered
@@ -299,7 +312,9 @@ class TestIntegrationScenarios:
             "mcp__weather_agent__get_weather",
             "mcp__weather_agent__get_locations",
         ]
-        filtered = filter_allowed_tools(weather_tools, PermissionPreset.COMMUNICATION_ONLY)
+        filtered = filter_allowed_tools(
+            weather_tools, PermissionPreset.COMMUNICATION_ONLY
+        )
         assert len(filtered) == 0
 
     def test_mixed_tools_filtered_correctly(self) -> None:
@@ -314,7 +329,9 @@ class TestIntegrationScenarios:
         ]
 
         # COMMUNICATION_ONLY should only keep A2A tools
-        comms_filtered = filter_allowed_tools(tools, PermissionPreset.COMMUNICATION_ONLY)
+        comms_filtered = filter_allowed_tools(
+            tools, PermissionPreset.COMMUNICATION_ONLY
+        )
         assert "mcp__controller__query_agent" in comms_filtered
         assert "mcp__controller__discover_agent" in comms_filtered
         assert len(comms_filtered) == 2

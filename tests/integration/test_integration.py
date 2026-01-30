@@ -27,7 +27,9 @@ class TestAgentEndpoints:
     async def test_weather_agent_discovery(self):
         """Test Weather Agent A2A discovery endpoint."""
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get("http://localhost:9001/.well-known/agent-configuration")
+            response = await client.get(
+                "http://localhost:9001/.well-known/agent-configuration"
+            )
             assert response.status_code == 200
 
             config = response.json()
@@ -40,7 +42,9 @@ class TestAgentEndpoints:
     async def test_maps_agent_discovery(self):
         """Test Maps Agent A2A discovery endpoint."""
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get("http://localhost:9002/.well-known/agent-configuration")
+            response = await client.get(
+                "http://localhost:9002/.well-known/agent-configuration"
+            )
             assert response.status_code == 200
 
             config = response.json()
@@ -52,7 +56,9 @@ class TestAgentEndpoints:
     async def test_controller_agent_discovery(self):
         """Test Controller Agent A2A discovery endpoint."""
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get("http://localhost:9000/.well-known/agent-configuration")
+            response = await client.get(
+                "http://localhost:9000/.well-known/agent-configuration"
+            )
             assert response.status_code == 200
 
             config = response.json()
@@ -65,7 +71,7 @@ class TestAgentEndpoints:
         agents = [
             ("Weather Agent", "http://localhost:9001"),
             ("Maps Agent", "http://localhost:9002"),
-            ("Controller Agent", "http://localhost:9000")
+            ("Controller Agent", "http://localhost:9000"),
         ]
 
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -87,14 +93,16 @@ class TestWeatherAgent:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 "http://localhost:9001/query",
-                json={"query": "What's the weather in Tokyo?"}
+                json={"query": "What's the weather in Tokyo?"},
             )
             assert response.status_code == 200
 
             result = response.json()
             assert "response" in result
             assert len(result["response"]) > 0
-            assert "Tokyo" in result["response"] or "tokyo" in result["response"].lower()
+            assert (
+                "Tokyo" in result["response"] or "tokyo" in result["response"].lower()
+            )
 
     @pytest.mark.asyncio
     async def test_weather_locations(self):
@@ -102,13 +110,16 @@ class TestWeatherAgent:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 "http://localhost:9001/query",
-                json={"query": "What cities do you have weather data for?"}
+                json={"query": "What cities do you have weather data for?"},
             )
             assert response.status_code == 200
 
             result = response.json()
             # Should mention available cities
-            assert any(city in result["response"] for city in ["Tokyo", "London", "Paris", "New York"])
+            assert any(
+                city in result["response"]
+                for city in ["Tokyo", "London", "Paris", "New York"]
+            )
 
 
 class TestMapsAgent:
@@ -120,7 +131,7 @@ class TestMapsAgent:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 "http://localhost:9002/query",
-                json={"query": "How far is Tokyo from London?"}
+                json={"query": "How far is Tokyo from London?"},
             )
             assert response.status_code == 200
 
@@ -138,13 +149,16 @@ class TestMapsAgent:
         async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(
                 "http://localhost:9002/query",
-                json={"query": "What cities are available?"}
+                json={"query": "What cities are available?"},
             )
             assert response.status_code == 200
 
             result = response.json()
             # Should list cities
-            assert any(city in result["response"] for city in ["Tokyo", "London", "Paris", "New York"])
+            assert any(
+                city in result["response"]
+                for city in ["Tokyo", "London", "Paris", "New York"]
+            )
 
 
 class TestControllerAgent:
@@ -156,15 +170,20 @@ class TestControllerAgent:
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
                 "http://localhost:9000/query",
-                json={"query": "What is the weather in Paris?"}
+                json={"query": "What is the weather in Paris?"},
             )
             assert response.status_code == 200
 
             result = response.json()
             assert "response" in result
-            assert "Paris" in result["response"] or "paris" in result["response"].lower()
+            assert (
+                "Paris" in result["response"] or "paris" in result["response"].lower()
+            )
             # Should have weather info
-            assert any(word in result["response"].lower() for word in ["temperature", "weather", "°c", "°f"])
+            assert any(
+                word in result["response"].lower()
+                for word in ["temperature", "weather", "°c", "°f"]
+            )
 
     @pytest.mark.asyncio
     async def test_maps_delegation(self):
@@ -172,7 +191,7 @@ class TestControllerAgent:
         async with httpx.AsyncClient(timeout=180.0) as client:
             response = await client.post(
                 "http://localhost:9000/query",
-                json={"query": "How far is London from New York?"}
+                json={"query": "How far is London from New York?"},
             )
             assert response.status_code == 200
 
@@ -182,7 +201,9 @@ class TestControllerAgent:
             assert "london" in response_lower
             assert "new york" in response_lower
             # Should have distance info
-            assert any(unit in result["response"] for unit in ["km", "miles", "kilometers"])
+            assert any(
+                unit in result["response"] for unit in ["km", "miles", "kilometers"]
+            )
 
     @pytest.mark.asyncio
     async def test_multi_agent_coordination(self):
@@ -190,7 +211,9 @@ class TestControllerAgent:
         async with httpx.AsyncClient(timeout=240.0) as client:
             response = await client.post(
                 "http://localhost:9000/query",
-                json={"query": "What's the weather in Tokyo and how far is it from London?"}
+                json={
+                    "query": "What's the weather in Tokyo and how far is it from London?"
+                },
             )
             assert response.status_code == 200
 
@@ -220,11 +243,7 @@ class TestLogging:
         """Test that agent log files are created."""
         log_dir = Path(__file__).parent.parent.parent / "logs"
 
-        expected_logs = [
-            "weather_agent.log",
-            "maps_agent.log",
-            "controller_agent.log"
-        ]
+        expected_logs = ["weather_agent.log", "maps_agent.log", "controller_agent.log"]
 
         for log_file in expected_logs:
             log_path = log_dir / log_file

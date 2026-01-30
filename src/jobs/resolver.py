@@ -1,7 +1,5 @@
 """Topology resolver - Generate deployment plans from topology patterns."""
 
-from typing import Dict, List, Set
-
 from .models import DeploymentPlan, JobDefinition
 
 
@@ -30,7 +28,7 @@ class TopologyResolver:
             stages=stages, agent_urls=agent_urls, connections=connections
         )
 
-    def _resolve_order(self, job: JobDefinition) -> List[List[str]]:
+    def _resolve_order(self, job: JobDefinition) -> list[list[str]]:
         """Resolve deployment order based on topology pattern.
 
         Returns list of stages, where each stage is a list of agent IDs
@@ -83,7 +81,7 @@ class TopologyResolver:
 
         return []
 
-    def _resolve_urls(self, job: JobDefinition) -> Dict[str, str]:
+    def _resolve_urls(self, job: JobDefinition) -> dict[str, str]:
         """Resolve URL for each agent based on deployment target.
 
         Args:
@@ -92,7 +90,7 @@ class TopologyResolver:
         Returns:
             Dictionary mapping agent ID to URL
         """
-        urls: Dict[str, str] = {}
+        urls: dict[str, str] = {}
 
         for agent in job.agents:
             port = agent.config.get("port")
@@ -113,13 +111,15 @@ class TopologyResolver:
             elif agent.deployment.target == "kubernetes":
                 namespace = agent.deployment.namespace or "default"
                 service = agent.id
-                urls[agent.id] = f"http://{service}.{namespace}.svc.cluster.local:{port}"
+                urls[agent.id] = (
+                    f"http://{service}.{namespace}.svc.cluster.local:{port}"
+                )
 
         return urls
 
     def _resolve_connections(
-        self, job: JobDefinition, urls: Dict[str, str]
-    ) -> Dict[str, List[str]]:
+        self, job: JobDefinition, urls: dict[str, str]
+    ) -> dict[str, list[str]]:
         """Determine which URLs each agent should connect to.
 
         Args:
@@ -129,13 +129,15 @@ class TopologyResolver:
         Returns:
             Dictionary mapping agent ID to list of connected agent URLs
         """
-        connections: Dict[str, List[str]] = {agent.id: [] for agent in job.agents}
+        connections: dict[str, list[str]] = {agent.id: [] for agent in job.agents}
         topology = job.topology
 
         if topology.type == "hub-spoke":
             # Hub connects to all spokes
             if topology.hub and topology.spokes:
-                connections[topology.hub] = [urls[s] for s in topology.spokes if s in urls]
+                connections[topology.hub] = [
+                    urls[s] for s in topology.spokes if s in urls
+                ]
                 # Spokes don't connect to anyone (or optionally to hub)
                 for spoke in topology.spokes:
                     connections[spoke] = []
@@ -147,7 +149,9 @@ class TopologyResolver:
                 for i in range(len(stages)):
                     current_stage = stages[i]
                     current_agents = (
-                        current_stage if isinstance(current_stage, list) else [current_stage]
+                        current_stage
+                        if isinstance(current_stage, list)
+                        else [current_stage]
                     )
 
                     if i < len(stages) - 1:
@@ -175,7 +179,8 @@ class TopologyResolver:
                     # Add URLs to connections
                     for to_id in to_ids:
                         if to_id in urls and to_id not in [
-                            u.split("://")[1].split(":")[0] for u in connections[from_id]
+                            u.split("://")[1].split(":")[0]
+                            for u in connections[from_id]
                         ]:
                             # Avoid duplicates
                             url = urls[to_id]
@@ -216,7 +221,7 @@ class TopologyResolver:
 
         return connections
 
-    def _dag_to_stages(self, job: JobDefinition) -> List[List[str]]:
+    def _dag_to_stages(self, job: JobDefinition) -> list[list[str]]:
         """Convert DAG connections to deployment stages via topological sort.
 
         Args:
@@ -229,8 +234,8 @@ class TopologyResolver:
             return []
 
         # Build adjacency list and in-degree count
-        graph: Dict[str, Set[str]] = {}
-        in_degree: Dict[str, int] = {}
+        graph: dict[str, set[str]] = {}
+        in_degree: dict[str, int] = {}
 
         # Initialize all agents
         for agent in job.agents:
@@ -247,7 +252,7 @@ class TopologyResolver:
                 in_degree[to_id] += 1
 
         # Topological sort with level assignment
-        stages: List[List[str]] = []
+        stages: list[list[str]] = []
         remaining = set(in_degree.keys())
 
         while remaining:

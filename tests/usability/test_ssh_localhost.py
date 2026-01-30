@@ -13,9 +13,17 @@ def check_ssh_available():
     """Check if SSH to localhost is available."""
     try:
         result = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=2", "localhost", "whoami"],
+            [
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=2",
+                "localhost",
+                "whoami",
+            ],
             capture_output=True,
-            timeout=5
+            timeout=5,
         )
         return result.returncode == 0
     except Exception:
@@ -48,9 +56,9 @@ async def test_ssh_localhost_deployment():
     from src.jobs.resolver import TopologyResolver
 
     # Load SSH job
-    print("\n2. Loading job: jobs/examples/ssh-localhost.yaml")
+    print("\n2. Loading job: examples/jobs/ssh-localhost.yaml")
     loader = JobLoader()
-    job = loader.load("jobs/examples/ssh-localhost.yaml")
+    job = loader.load("examples/jobs/ssh-localhost.yaml")
     print(f"   ✓ Job: {job.job.name}")
     print(f"   ✓ Agents: {len(job.agents)}")
 
@@ -66,7 +74,7 @@ async def test_ssh_localhost_deployment():
     plan = resolver.resolve(job)
     print(f"   ✓ Stages: {len(plan.stages)}")
     for idx, stage in enumerate(plan.stages):
-        print(f"     Stage {idx+1}: {', '.join(stage)}")
+        print(f"     Stage {idx + 1}: {', '.join(stage)}")
 
     # Deploy via SSH
     print("\n4. Deploying agents via SSH...")
@@ -84,8 +92,7 @@ async def test_ssh_localhost_deployment():
             for agent_id, agent in deployed.agents.items():
                 try:
                     response = await client.get(
-                        f"{agent.url}/.well-known/agent-configuration",
-                        timeout=5.0
+                        f"{agent.url}/.well-known/agent-configuration", timeout=5.0
                     )
                     if response.status_code == 200:
                         config = response.json()
@@ -103,7 +110,7 @@ async def test_ssh_localhost_deployment():
             response = await client.post(
                 "http://localhost:9100/query",  # Controller on port 9100 (from ssh-localhost.yaml)
                 json={"query": "What's the weather in Tokyo?"},
-                timeout=30.0
+                timeout=30.0,
             )
 
             if response.status_code == 200:
@@ -116,13 +123,17 @@ async def test_ssh_localhost_deployment():
         # Check remote processes
         print("\n7. Verifying remote processes on localhost...")
         result = subprocess.run(
-            ["ssh", "localhost", "ps aux | grep -E '(weather_agent|maps_agent)' | grep -v grep"],
+            [
+                "ssh",
+                "localhost",
+                "ps aux | grep -E '(weather_agent|maps_agent)' | grep -v grep",
+            ],
             capture_output=True,
-            text=True
+            text=True,
         )
         if result.stdout.strip():
             print("   ✓ Remote agents are running on localhost:")
-            for line in result.stdout.strip().split('\n')[:2]:
+            for line in result.stdout.strip().split("\n")[:2]:
                 parts = line.split()
                 if len(parts) > 10:
                     print(f"     - PID {parts[1]}: {' '.join(parts[10:])[:60]}")
@@ -163,6 +174,7 @@ async def test_ssh_localhost_deployment():
     except Exception as e:
         print(f"\n✗ Deployment failed: {e}")
         import traceback
+
         traceback.print_exc()
 
         # Try to cleanup

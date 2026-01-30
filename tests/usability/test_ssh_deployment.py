@@ -14,11 +14,20 @@ from src.jobs.resolver import TopologyResolver
 def check_ssh_available():
     """Check if SSH to localhost is available."""
     import subprocess
+
     try:
         result = subprocess.run(
-            ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=2", "localhost", "whoami"],
+            [
+                "ssh",
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=2",
+                "localhost",
+                "whoami",
+            ],
             capture_output=True,
-            timeout=5
+            timeout=5,
         )
         return result.returncode == 0
     except Exception:
@@ -55,7 +64,7 @@ async def test_ssh_deployment():
     # Load job
     print("\n2. Loading SSH job definition...")
     loader = JobLoader()
-    job = loader.load("jobs/examples/ssh-localhost.yaml")
+    job = loader.load("examples/jobs/ssh-localhost.yaml")
     print(f"   ✓ Loaded: {job.job.name}")
 
     # Generate plan
@@ -75,17 +84,19 @@ async def test_ssh_deployment():
     # Test health
     print("\n5. Testing agent health...")
     import httpx
+
     async with httpx.AsyncClient() as client:
         for agent_id, agent in deployed_job.agents.items():
             try:
                 response = await client.get(
-                    f"{agent.url}/.well-known/agent-configuration",
-                    timeout=5.0
+                    f"{agent.url}/.well-known/agent-configuration", timeout=5.0
                 )
                 if response.status_code == 200:
                     print(f"   ✓ {agent_id} ({agent.url}): healthy")
                 else:
-                    print(f"   ✗ {agent_id} ({agent.url}): status {response.status_code}")
+                    print(
+                        f"   ✗ {agent_id} ({agent.url}): status {response.status_code}"
+                    )
             except Exception as e:
                 print(f"   ✗ {agent_id} ({agent.url}): {e}")
 

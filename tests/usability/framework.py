@@ -12,7 +12,6 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import httpx
 
@@ -99,7 +98,9 @@ class UsabilityScenario:
             # 5. Find entry agent URL
             entry_url = self._get_entry_url(deployed_job)
             if not entry_url:
-                result.error = f"Entry agent '{self.entry_agent}' not found in deployed job"
+                result.error = (
+                    f"Entry agent '{self.entry_agent}' not found in deployed job"
+                )
                 return result
 
             # 6. Send query
@@ -269,16 +270,20 @@ def print_scenario_result(result: ScenarioResult) -> None:
     """Pretty print a scenario result."""
     status = "[PASSED]" if result.success else "[FAILED]"
 
-    _safe_print(f"\n{'='*60}")
+    _safe_print(f"\n{'=' * 60}")
     _safe_print(f"Scenario: {result.scenario_name}")
     _safe_print(f"Status: {status}")
     _safe_print(f"Duration: {result.duration_seconds:.2f}s")
-    _safe_print(f"{'='*60}")
+    _safe_print(f"{'=' * 60}")
     _safe_print(f"Job: {result.job_file}")
     _safe_print(f"Query: {result.query}")
 
     if result.response:
-        preview = result.response[:200] + "..." if len(result.response) > 200 else result.response
+        preview = (
+            result.response[:200] + "..."
+            if len(result.response) > 200
+            else result.response
+        )
         _safe_print(f"\nResponse:\n  {preview}")
 
     if result.matched_patterns:
@@ -302,4 +307,4 @@ def print_scenario_result(result: ScenarioResult) -> None:
             else:
                 _safe_print(f"  {agent_id}: No errors")
 
-    _safe_print(f"{'='*60}\n")
+    _safe_print(f"{'=' * 60}\n")

@@ -1,12 +1,13 @@
 """Pydantic models for A2A job definitions."""
 
-from typing import Any, Dict, List, Literal, Optional, Union
-from pydantic import BaseModel, Field, field_validator
+from typing import Any, Literal
 
+from pydantic import BaseModel, Field, SecretStr, field_validator
 
 # ============================================================================
 # Job Metadata
 # ============================================================================
+
 
 class JobMetadata(BaseModel):
     """Job metadata and identification."""
@@ -14,12 +15,13 @@ class JobMetadata(BaseModel):
     name: str = Field(..., description="Unique job identifier")
     version: str = Field(..., description="Semantic version (e.g., '1.0.0')")
     description: str = Field(..., description="Human-readable description")
-    tags: List[str] = Field(default_factory=list, description="Optional tags")
+    tags: list[str] = Field(default_factory=list, description="Optional tags")
 
 
 # ============================================================================
 # Agent Configuration
 # ============================================================================
+
 
 class AgentDeploymentConfig(BaseModel):
     """Agent deployment configuration."""
@@ -29,27 +31,31 @@ class AgentDeploymentConfig(BaseModel):
     )
 
     # Remote deployment (SSH)
-    host: Optional[str] = Field(None, description="Hostname/IP for remote deployment")
-    user: Optional[str] = Field(None, description="SSH user (defaults to current user)")
-    ssh_key: Optional[str] = Field(None, description="Path to SSH private key (defaults to ~/.ssh/id_rsa)")
-    password: Optional[str] = Field(None, description="SSH password (not recommended, use keys)")
-    python: Optional[str] = Field(
+    host: str | None = Field(None, description="Hostname/IP for remote deployment")
+    user: str | None = Field(None, description="SSH user (defaults to current user)")
+    ssh_key: str | None = Field(
+        None, description="Path to SSH private key (defaults to ~/.ssh/id_rsa)"
+    )
+    password: SecretStr | None = Field(
+        None, description="SSH password (not recommended, use keys)"
+    )
+    python: str | None = Field(
         "python3", description="Python interpreter path on remote host"
     )
-    workdir: Optional[str] = Field(None, description="Working directory on target")
-    port: Optional[int] = Field(22, description="SSH port")
+    workdir: str | None = Field(None, description="Working directory on target")
+    port: int | None = Field(22, description="SSH port")
 
     # Container deployment
-    image: Optional[str] = Field(None, description="Docker image for container deployment")
-    network: Optional[str] = Field(None, description="Docker network name")
-    container_name: Optional[str] = Field(None, description="Container name")
+    image: str | None = Field(None, description="Docker image for container deployment")
+    network: str | None = Field(None, description="Docker network name")
+    container_name: str | None = Field(None, description="Container name")
 
     # Kubernetes deployment
-    namespace: Optional[str] = Field(None, description="Kubernetes namespace")
-    service_type: Optional[str] = Field(None, description="Kubernetes service type")
+    namespace: str | None = Field(None, description="Kubernetes namespace")
+    service_type: str | None = Field(None, description="Kubernetes service type")
 
     # Environment variables
-    environment: Optional[Dict[str, str]] = Field(
+    environment: dict[str, str] | None = Field(
         default_factory=dict, description="Environment variables"
     )
 
@@ -57,9 +63,9 @@ class AgentDeploymentConfig(BaseModel):
 class AgentResourceConfig(BaseModel):
     """Agent resource requirements."""
 
-    cpu: Optional[float] = Field(None, description="CPU cores")
-    memory: Optional[str] = Field(None, description="Memory limit (e.g., '1G', '512M')")
-    gpu: Optional[int] = Field(None, description="Number of GPUs")
+    cpu: float | None = Field(None, description="CPU cores")
+    memory: str | None = Field(None, description="Memory limit (e.g., '1G', '512M')")
+    gpu: int | None = Field(None, description="Number of GPUs")
 
 
 class AgentConfig(BaseModel):
@@ -68,17 +74,19 @@ class AgentConfig(BaseModel):
     id: str = Field(..., description="Unique agent identifier within job")
     type: str = Field(..., description="Agent class name")
     module: str = Field(..., description="Python module path")
-    config: Dict[str, Any] = Field(
+    config: dict[str, Any] = Field(
         default_factory=dict, description="Agent-specific configuration"
     )
-    deployment: AgentDeploymentConfig = Field(..., description="Deployment configuration")
-    resources: Optional[AgentResourceConfig] = Field(
+    deployment: AgentDeploymentConfig = Field(
+        ..., description="Deployment configuration"
+    )
+    resources: AgentResourceConfig | None = Field(
         None, description="Resource requirements"
     )
 
     @field_validator("config")
     @classmethod
-    def validate_port(cls, v: Dict[str, Any]) -> Dict[str, Any]:
+    def validate_port(cls, v: dict[str, Any]) -> dict[str, Any]:
         """Ensure port is specified in config."""
         if "port" not in v:
             raise ValueError("Agent config must include 'port'")
@@ -89,12 +97,13 @@ class AgentConfig(BaseModel):
 # Topology Configuration
 # ============================================================================
 
+
 class Connection(BaseModel):
     """A connection between two agents."""
 
     from_: str = Field(..., alias="from", description="Source agent ID")
-    to: Union[str, List[str]] = Field(..., description="Target agent ID(s)")
-    type: Optional[str] = Field(
+    to: str | list[str] = Field(..., description="Target agent ID(s)")
+    type: str | None = Field(
         "query", description="Connection type: query, stream, bidirectional"
     )
 
@@ -107,25 +116,27 @@ class TopologyConfig(BaseModel):
     )
 
     # Hub-spoke specific
-    hub: Optional[str] = Field(None, description="Hub agent ID (for hub-spoke)")
-    spokes: Optional[List[str]] = Field(None, description="Spoke agent IDs (for hub-spoke)")
+    hub: str | None = Field(None, description="Hub agent ID (for hub-spoke)")
+    spokes: list[str] | None = Field(
+        None, description="Spoke agent IDs (for hub-spoke)"
+    )
 
     # Pipeline specific
-    stages: Optional[List[Union[str, List[str]]]] = Field(
+    stages: list[str | list[str]] | None = Field(
         None, description="Pipeline stages (for pipeline)"
     )
 
     # DAG specific
-    connections: Optional[List[Connection]] = Field(
+    connections: list[Connection] | None = Field(
         None, description="Explicit connections (for DAG)"
     )
 
     # Mesh specific
-    agents: Optional[List[str]] = Field(None, description="Agent IDs (for mesh)")
+    agents: list[str] | None = Field(None, description="Agent IDs (for mesh)")
 
     # Hierarchical specific
-    root: Optional[str] = Field(None, description="Root agent ID (for hierarchical)")
-    levels: Optional[List[List[str]]] = Field(
+    root: str | None = Field(None, description="Root agent ID (for hierarchical)")
+    levels: list[list[str]] | None = Field(
         None, description="Hierarchical levels (for hierarchical)"
     )
 
@@ -142,6 +153,7 @@ class TopologyConfig(BaseModel):
 # Deployment Configuration
 # ============================================================================
 
+
 class HealthCheckConfig(BaseModel):
     """Health check configuration."""
 
@@ -154,7 +166,7 @@ class HealthCheckConfig(BaseModel):
 class SSHConfig(BaseModel):
     """SSH configuration for remote deployment."""
 
-    key_file: Optional[str] = Field(None, description="SSH key file path")
+    key_file: str | None = Field(None, description="SSH key file path")
     timeout: int = Field(30, description="SSH connection timeout")
 
 
@@ -162,7 +174,7 @@ class NetworkConfig(BaseModel):
     """Network configuration."""
 
     allow_cross_host: bool = Field(True, description="Allow cross-host communication")
-    firewall_rules: Optional[List[Dict[str, Any]]] = Field(
+    firewall_rules: list[dict[str, Any]] | None = Field(
         None, description="Firewall rules"
     )
 
@@ -177,18 +189,19 @@ class DeploymentConfig(BaseModel):
     health_check: HealthCheckConfig = Field(
         default_factory=HealthCheckConfig, description="Health check configuration"
     )
-    ssh: Optional[SSHConfig] = Field(None, description="SSH configuration")
-    network: Optional[NetworkConfig] = Field(None, description="Network configuration")
+    ssh: SSHConfig | None = Field(None, description="SSH configuration")
+    network: NetworkConfig | None = Field(None, description="Network configuration")
 
 
 # ============================================================================
 # Execution Configuration
 # ============================================================================
 
+
 class ExecutionConfig(BaseModel):
     """Workflow execution configuration."""
 
-    entry_point: Optional[str] = Field(None, description="Entry point agent ID")
+    entry_point: str | None = Field(None, description="Entry point agent ID")
     auto_start: bool = Field(False, description="Auto-start workflow on deployment")
 
 
@@ -196,25 +209,26 @@ class ExecutionConfig(BaseModel):
 # Complete Job Definition
 # ============================================================================
 
+
 class JobDefinition(BaseModel):
     """Complete job definition."""
 
     job: JobMetadata = Field(..., description="Job metadata")
-    agents: List[AgentConfig] = Field(..., description="Agent definitions")
+    agents: list[AgentConfig] = Field(..., description="Agent definitions")
     topology: TopologyConfig = Field(..., description="Network topology")
     deployment: DeploymentConfig = Field(
         default_factory=DeploymentConfig, description="Deployment configuration"
     )
-    execution: Optional[ExecutionConfig] = Field(
+    execution: ExecutionConfig | None = Field(
         None, description="Execution configuration"
     )
-    environment: Optional[Dict[str, str]] = Field(
+    environment: dict[str, str] | None = Field(
         default_factory=dict, description="Global environment variables"
     )
 
     @field_validator("agents")
     @classmethod
-    def validate_unique_agent_ids(cls, v: List[AgentConfig]) -> List[AgentConfig]:
+    def validate_unique_agent_ids(cls, v: list[AgentConfig]) -> list[AgentConfig]:
         """Ensure agent IDs are unique."""
         agent_ids = [agent.id for agent in v]
         if len(agent_ids) != len(set(agent_ids)):
@@ -223,10 +237,10 @@ class JobDefinition(BaseModel):
 
     @field_validator("agents")
     @classmethod
-    def validate_no_port_conflicts(cls, v: List[AgentConfig]) -> List[AgentConfig]:
+    def validate_no_port_conflicts(cls, v: list[AgentConfig]) -> list[AgentConfig]:
         """Check for port conflicts on same deployment target."""
         # Group by deployment target
-        target_ports: Dict[str, List[int]] = {}
+        target_ports: dict[str, list[int]] = {}
 
         for agent in v:
             # Construct target key
@@ -252,7 +266,7 @@ class JobDefinition(BaseModel):
 
         return v
 
-    def get_agent(self, agent_id: str) -> Optional[AgentConfig]:
+    def get_agent(self, agent_id: str) -> AgentConfig | None:
         """Get agent configuration by ID."""
         for agent in self.agents:
             if agent.id == agent_id:
@@ -268,16 +282,15 @@ class JobDefinition(BaseModel):
 # Deployment Plan (output of TopologyResolver)
 # ============================================================================
 
+
 class DeploymentPlan(BaseModel):
     """Deployment plan generated by TopologyResolver."""
 
-    stages: List[List[str]] = Field(
+    stages: list[list[str]] = Field(
         ..., description="Ordered stages of agent IDs to deploy"
     )
-    agent_urls: Dict[str, str] = Field(
-        ..., description="Resolved URL for each agent"
-    )
-    connections: Dict[str, List[str]] = Field(
+    agent_urls: dict[str, str] = Field(..., description="Resolved URL for each agent")
+    connections: dict[str, list[str]] = Field(
         ..., description="Connected agent URLs for each agent"
     )
 
@@ -286,13 +299,14 @@ class DeploymentPlan(BaseModel):
 # Deployed Job (output of AgentDeployer)
 # ============================================================================
 
+
 class DeployedAgent(BaseModel):
     """Information about a deployed agent."""
 
     agent_id: str
     url: str
-    process_id: Optional[int] = None
-    container_id: Optional[str] = None
+    process_id: int | None = None
+    container_id: str | None = None
     status: Literal["starting", "healthy", "unhealthy", "stopped"] = "starting"
 
 
@@ -302,6 +316,8 @@ class DeployedJob(BaseModel):
     job_id: str
     definition: JobDefinition
     plan: DeploymentPlan
-    agents: Dict[str, DeployedAgent]
+    agents: dict[str, DeployedAgent]
     start_time: str
-    status: Literal["deploying", "running", "stopping", "stopped", "failed"] = "deploying"
+    status: Literal["deploying", "running", "stopping", "stopped", "failed"] = (
+        "deploying"
+    )
