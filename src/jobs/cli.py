@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -16,12 +17,19 @@ from .loader import JobLoader, JobLoadError
 from .registry import AgentState, JobState, get_registry
 from .resolver import TopologyResolver
 
+# Ensure UTF-8 output on Windows console
+if sys.platform == "win32":
+    import codecs
+
+    sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer, "replace")
+    sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer, "replace")
+
 app = typer.Typer(
     name="deploy",
     help="A2A Job Deployment System - Deploy multi-agent workflows",
     add_completion=False,
 )
-console = Console()
+console = Console(force_terminal=True)
 
 
 # ============================================================================
