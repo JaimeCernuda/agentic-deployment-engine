@@ -600,6 +600,9 @@ Always be concise and professional in your responses."""
                 self.logger.error(f"Error cleaning up backend: {e}")
 
         # Cleanup all clients in the pool (legacy)
+        # Note: Claude SDK clients may throw cancel scope errors when disconnected
+        # from a different task than they were created in. This is expected during
+        # shutdown and we simply clear the pool - clients will be garbage collected.
         clients_closed = 0
         while not self._client_pool.empty():
             try:
@@ -608,8 +611,15 @@ Always be concise and professional in your responses."""
                 clients_closed += 1
             except asyncio.QueueEmpty:
                 break
+            except RuntimeError as e:
+                # Cancel scope errors are expected when cleanup runs in different task
+                if "cancel scope" in str(e).lower():
+                    clients_closed += 1  # Client will be GC'd
+                    self.logger.debug(f"Client cleanup deferred to GC: {e}")
+                else:
+                    self.logger.error(f"Error disconnecting pool client: {e}")
             except Exception as e:
-                self.logger.error(f"Error disconnecting pool client: {e}")
+                self.logger.warning(f"Error disconnecting pool client: {e}")
 
         if clients_closed > 0:
             self.logger.debug(f"Closed {clients_closed} pooled clients")
@@ -619,8 +629,14 @@ Always be concise and professional in your responses."""
             try:
                 await self.claude_client.disconnect()
                 self.logger.debug("Legacy Claude SDK client disconnected")
+            except RuntimeError as e:
+                # Cancel scope errors are expected when cleanup runs in different task
+                if "cancel scope" in str(e).lower():
+                    self.logger.debug(f"Client cleanup deferred to GC: {e}")
+                else:
+                    self.logger.error(f"Error disconnecting Claude client: {e}")
             except Exception as e:
-                self.logger.error(f"Error disconnecting Claude client: {e}")
+                self.logger.warning(f"Error disconnecting Claude client: {e}")
             self.claude_client = None
 
         # Cleanup agent registry
