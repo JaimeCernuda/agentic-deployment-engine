@@ -4,6 +4,7 @@ Provides integration with the Claude Agent SDK for agentic inference.
 """
 
 import asyncio
+import json
 import logging
 from collections.abc import AsyncIterator
 from typing import Any
@@ -12,6 +13,7 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
 from ..config import settings
 from ..core.exceptions import AgentBackendError
+from ..observability.semantic import get_semantic_tracer
 from .base import AgentBackend, BackendConfig, QueryResult
 
 logger = logging.getLogger(__name__)
@@ -107,6 +109,9 @@ class ClaudeSDKBackend(AgentBackend):
         await self.initialize()
 
         client = await self._pool.get()
+        tracer = get_semantic_tracer()
+        tools_used_names: list[str] = []
+
         try:
             logger.debug(f"Executing query ({len(prompt)} chars)")
             await client.query(prompt)
@@ -117,15 +122,76 @@ class ClaudeSDKBackend(AgentBackend):
 
             async for message in client.receive_response():
                 message_count += 1
+                role = getattr(message, "role", "unknown")
+                stop_reason = getattr(message, "stop_reason", None)
 
                 content = getattr(message, "content", None)
                 if content is not None:
+                    # Build full content string for LLM message tracing
+                    content_parts: list[str] = []
                     for block in content:
+                        block_type = getattr(block, "type", None)
                         text = getattr(block, "text", None)
+                        tool_name = getattr(block, "name", None)
+                        tool_input = getattr(block, "input", None)
+
                         if text is not None:
                             response += text
-                        if getattr(block, "name", None) is not None:
+                            content_parts.append(text)
+
+                        if tool_name is not None:
+                            # This is a tool_use block - trace the tool call
                             tool_count += 1
+                            tools_used_names.append(tool_name)
+
+                            # Serialize tool input for tracing
+                            input_str = (
+                                json.dumps(tool_input, default=str)
+                                if tool_input
+                                else "{}"
+                            )
+                            content_parts.append(
+                                f"[tool_use: {tool_name}({input_str})]"
+                            )
+
+                            # Trace the tool call
+                            with tracer.tool_call(tool_name, tool_input) as span:
+                                tracer.add_event(
+                                    span,
+                                    "tool_invoked",
+                                    {"block_type": block_type or "tool_use"},
+                                )
+
+                        # Handle tool_result blocks
+                        if block_type == "tool_result":
+                            tool_use_id = getattr(block, "tool_use_id", None)
+                            tool_content = getattr(block, "content", None)
+                            is_error = getattr(block, "is_error", False)
+
+                            result_str = str(tool_content)[:200] if tool_content else ""
+                            content_parts.append(f"[tool_result: {result_str}...]")
+
+                            logger.debug(
+                                f"Tool result for {tool_use_id}: "
+                                f"{'error' if is_error else 'success'}"
+                            )
+
+                    # Trace the full LLM message
+                    full_content = " ".join(content_parts) if content_parts else ""
+                    with tracer.llm_message(
+                        role=role,
+                        content=full_content,
+                        model="claude-agent-sdk",
+                    ) as span:
+                        tracer.add_event(
+                            span,
+                            "message_received",
+                            {
+                                "message_index": message_count,
+                                "stop_reason": stop_reason,
+                                "has_tool_use": tool_count > 0,
+                            },
+                        )
 
             logger.debug(
                 f"Query complete: {message_count} messages, {tool_count} tools"
@@ -135,7 +201,12 @@ class ClaudeSDKBackend(AgentBackend):
                 response=response or "No response generated",
                 messages_count=message_count,
                 tools_used=tool_count,
-                metadata={"context": context} if context else {},
+                metadata={
+                    "context": context,
+                    "tools_used_names": tools_used_names,
+                }
+                if context or tools_used_names
+                else {},
             )
 
         except Exception as e:
@@ -166,11 +237,41 @@ class ClaudeSDKBackend(AgentBackend):
         await self.initialize()
 
         client = await self._pool.get()
+        tracer = get_semantic_tracer()
+        message_count = 0
+
         try:
             logger.debug(f"Executing streaming query ({len(prompt)} chars)")
             await client.query(prompt)
 
             async for message in client.receive_response():
+                message_count += 1
+                role = getattr(message, "role", "unknown")
+
+                # Trace each streamed message
+                content = getattr(message, "content", None)
+                content_str = ""
+                if content:
+                    for block in content:
+                        text = getattr(block, "text", None)
+                        tool_name = getattr(block, "name", None)
+                        if text:
+                            content_str += text
+                        if tool_name:
+                            tool_input = getattr(block, "input", None)
+                            content_str += f"[tool: {tool_name}]"
+                            # Trace tool call in streaming mode
+                            with tracer.tool_call(tool_name, tool_input):
+                                pass  # Tool traced
+
+                # Trace the LLM message
+                with tracer.llm_message(
+                    role=role,
+                    content=content_str,
+                    model="claude-agent-sdk",
+                ) as span:
+                    tracer.add_event(span, "stream_message", {"index": message_count})
+
                 yield message
 
         except Exception as e:
