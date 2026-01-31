@@ -14,7 +14,7 @@ import httpx
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
 from ..config import settings
-from ..observability.semantic import get_semantic_tracer
+from ..observability.semantic import get_current_agent_name, get_semantic_tracer
 from ..observability.telemetry import inject_context, traced_operation
 
 logger = logging.getLogger(__name__)
@@ -119,11 +119,12 @@ async def query_agent(args: dict[str, Any]) -> dict[str, Any]:
     # Semantic tracing for A2A message exchange
     semantic_tracer = get_semantic_tracer()
 
-    # Extract source agent from URL pattern if possible
+    # Get source agent from context (set by query_handling)
+    source_agent = get_current_agent_name() or "unknown"
     target_agent = urlparse(agent_url).netloc
 
     with semantic_tracer.a2a_message(
-        source_agent="caller",
+        source_agent=source_agent,
         target_agent=target_agent,
         query=query,
     ) as sem_span:

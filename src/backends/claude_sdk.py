@@ -250,7 +250,6 @@ class ClaudeSDKBackend(AgentBackend):
 
             async for message in client.receive_response():
                 message_count += 1
-                role = getattr(message, "role", "unknown")
                 stop_reason = getattr(message, "stop_reason", None)
 
                 content = getattr(message, "content", None)
@@ -258,6 +257,9 @@ class ClaudeSDKBackend(AgentBackend):
                     # Build content summary for framework-level tracing
                     # (detailed tool tracing is handled by SDK hooks inside the loop)
                     content_parts: list[str] = []
+                    has_tool_use = False
+                    has_tool_result = False
+
                     for block in content:
                         block_type = getattr(block, "type", None)
                         text = getattr(block, "text", None)
@@ -273,6 +275,7 @@ class ClaudeSDKBackend(AgentBackend):
                             tool_count += 1
                             tools_used_names.append(tool_name)
                             content_parts.append(f"[tool:{tool_name}]")
+                            has_tool_use = True
 
                         if block_type == "tool_result":
                             tool_content = getattr(block, "content", None)
@@ -280,6 +283,16 @@ class ClaudeSDKBackend(AgentBackend):
                                 str(tool_content)[:50] if tool_content else ""
                             )
                             content_parts.append(f"[result:{result_preview}...]")
+                            has_tool_result = True
+
+                    # Infer role from content structure
+                    # SDK receive_response() returns assistant messages, but we can be more specific
+                    if has_tool_result:
+                        role = "tool_result"
+                    elif has_tool_use:
+                        role = "assistant_tool_use"
+                    else:
+                        role = "assistant"
 
                     # Framework-level: trace each LLM message in the external response stream
                     full_content = " ".join(content_parts) if content_parts else ""
@@ -351,20 +364,34 @@ class ClaudeSDKBackend(AgentBackend):
 
             async for message in client.receive_response():
                 message_count += 1
-                role = getattr(message, "role", "unknown")
 
                 # Build content summary for framework-level tracing
                 # (internal tool execution is traced by SDK hooks)
                 content = getattr(message, "content", None)
                 content_str = ""
+                has_tool_use = False
+                has_tool_result = False
+
                 if content:
                     for block in content:
                         text = getattr(block, "text", None)
                         tool_name = getattr(block, "name", None)
+                        block_type = getattr(block, "type", None)
                         if text:
                             content_str += text
                         if tool_name:
                             content_str += f"[tool:{tool_name}]"
+                            has_tool_use = True
+                        if block_type == "tool_result":
+                            has_tool_result = True
+
+                # Infer role from content structure
+                if has_tool_result:
+                    role = "tool_result"
+                elif has_tool_use:
+                    role = "assistant_tool_use"
+                else:
+                    role = "assistant"
 
                 # Framework-level: trace the streamed LLM message
                 with tracer.llm_message(

@@ -39,12 +39,17 @@ import threading
 import uuid
 from collections.abc import Generator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Context variable to propagate agent name through spans
+# This allows SDK hooks and A2A transport to know which agent they're tracing
+_current_agent_name: ContextVar[str | None] = ContextVar("agent_name", default=None)
 
 
 @dataclass
@@ -212,6 +217,17 @@ class SemanticTracer:
         """
         parent = SpanContext.get_current()
 
+        # Build base attributes
+        span_attrs = {
+            "service.name": self.service_name,
+            **(attributes or {}),
+        }
+
+        # Add agent name from context if available and not already set
+        agent_name = _current_agent_name.get()
+        if agent_name and "agent.name" not in span_attrs:
+            span_attrs["agent.name"] = agent_name
+
         return SpanData(
             trace_id=self._trace_id or str(uuid.uuid4()),
             span_id=str(uuid.uuid4())[:8],
@@ -220,10 +236,7 @@ class SemanticTracer:
             level=level,
             category=category,
             start_time=datetime.now(UTC).isoformat(),
-            attributes={
-                "service.name": self.service_name,
-                **(attributes or {}),
-            },
+            attributes=span_attrs,
         )
 
     def _finish_span(
@@ -476,6 +489,9 @@ class SemanticTracer:
     ) -> Generator[SpanData, None, None]:
         """Trace query handling within an agent.
 
+        Sets agent context so all child spans (tool calls, LLM messages, A2A)
+        automatically include the agent.name attribute.
+
         Args:
             agent_name: Name of the handling agent.
             query: The incoming query.
@@ -485,19 +501,25 @@ class SemanticTracer:
         Yields:
             Active span.
         """
-        with self._span_context(
-            name=f"query:{agent_name}",
-            level="agent",
-            category="query_handling",
-            attributes={
-                "query.agent": agent_name,
-                "query.text": query[:500] if query else None,
-                "query.length": len(query) if query else 0,
-                "query.session_id": session_id,
-                "query.history_length": history_length,
-            },
-        ) as span:
-            yield span
+        # Set agent context for child spans (SDK hooks, A2A transport, etc.)
+        token = _current_agent_name.set(agent_name)
+        try:
+            with self._span_context(
+                name=f"query:{agent_name}",
+                level="agent",
+                category="query_handling",
+                attributes={
+                    "query.agent": agent_name,
+                    "agent.name": agent_name,  # Also set explicitly on this span
+                    "query.text": query[:500] if query else None,
+                    "query.length": len(query) if query else 0,
+                    "query.session_id": session_id,
+                    "query.history_length": history_length,
+                },
+            ) as span:
+                yield span
+        finally:
+            _current_agent_name.reset(token)
 
     @contextmanager
     def tool_call(
@@ -692,3 +714,15 @@ def reset_semantic_tracer() -> None:
     """Reset the global tracer (for testing purposes)."""
     global _global_tracer
     _global_tracer = None
+
+
+def get_current_agent_name() -> str | None:
+    """Get the current agent name from context.
+
+    This is set by query_handling() and propagated through all child spans.
+    Useful for A2A transport to identify the calling agent.
+
+    Returns:
+        Agent name if set, None otherwise.
+    """
+    return _current_agent_name.get()
