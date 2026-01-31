@@ -1,6 +1,6 @@
 ---
 active: true
-iteration: 9
+iteration: 10
 max_iterations: 100
 completion_promise: null
 started_at: "2026-01-31T06:32:48Z"
@@ -423,7 +423,10 @@ Update docs: how to enable tracing, read traces, interpret spans.
 ## Untested Edge Cases (for Phase 6)
 
 - Client pool edge cases (pool_size=0, pool_size=1 with concurrent queries)
-- OTEL with actual Jaeger collector
+- [x] OTEL with actual Jaeger collector ✅ VERIFIED (Iteration 9)
+  - Jaeger: `docker run -d --name jaeger -p 16686:16686 -p 4317:4317 jaegertracing/all-in-one`
+  - Deploy: `AGENT_OTEL_ENABLED=true AGENT_OTEL_ENDPOINT=http://localhost:4317 uv run deploy start ...`
+  - HTTP spans exported, service "agentic-deployment-engine.Controller Agent" visible in Jaeger UI
 - Network failure during A2A call
 - SSH connection drops mid-deployment
 - Security/permissions (invalid API keys, permission denials)
@@ -448,7 +451,7 @@ Agents: ingester, transformer, validator, writer
 
 ## Ralph Loop Protocol
 
-Each iteration: 7. READ this plan - what's next?
+Each iteration: 10. READ this plan - what's next?
 2. READ scratch file - what's done?
 3. IMPLEMENT one small piece
 4. TEST it actually works
