@@ -53,6 +53,11 @@ async def _pre_tool_use_hook(
     tool_name = hook_input["tool_name"]
     tool_input = hook_input.get("tool_input", {})
 
+    # Start a trace if one isn't active (auto-start for agent queries)
+    if tracer._trace_id is None:
+        session_id = hook_input.get("session_id", "default")
+        tracer.start_trace(f"agent-query-{session_id[:8]}")
+
     # Create a span for this tool call
     span = tracer._create_span(
         name=f"tool:{tool_name}",
@@ -72,9 +77,7 @@ async def _pre_tool_use_hook(
     span_key = f"{hook_input.get('session_id', 'default')}:{tool_name}"
     _active_tool_spans[span_key] = span
 
-    logger.debug(
-        f"[HOOK] PreToolUse: {tool_name} with input: {str(tool_input)[:100]}..."
-    )
+    logger.debug(f"[HOOK] PreToolUse: {tool_name}")
 
     return {}
 
