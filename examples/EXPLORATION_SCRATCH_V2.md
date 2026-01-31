@@ -775,10 +775,11 @@ P10: Documentation updated - major CLI gaps fixed, some advanced topics still un
 - #18: Cross-node ALLOWED_HOSTS → Fixed
 - #19: Alternative backends unused → Fixed
 
-## Remaining Open Issues (3 enhancements only)
-- #3: Configurable client pool size (enhancement)
+## Remaining Open Issues (2 enhancements only)
 - #4: Parallel tool calls (enhancement)
 - #5: Process tree tracking (enhancement)
+
+Note: #3 (client pool size) was already implemented via AGENT_CLIENT_POOL_SIZE
 
 ## ALL BUGS FIXED
 - #7: Cancel scope error during cleanup → Fixed in aebce6e
