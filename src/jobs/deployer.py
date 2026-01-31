@@ -15,6 +15,7 @@ from typing import Any
 import httpx
 import paramiko
 
+from ..observability.semantic import get_semantic_tracer
 from .models import (
     AgentConfig,
     DeployedAgent,
@@ -881,6 +882,11 @@ class AgentDeployer:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         run_id = f"{job.job.name}-{timestamp}"
 
+        # Get semantic tracer and start job deployment trace
+        tracer = get_semantic_tracer()
+        agent_ids = [a.id for a in job.agents]
+        topology_type = job.topology.type if job.topology else None
+
         logger.info(f"Deploying job: {job.job.name} (run: {run_id})")
         logger.info(f"Deployment strategy: {job.deployment.strategy}")
         logger.info(f"Stages: {len(plan.stages)}")
@@ -888,86 +894,104 @@ class AgentDeployer:
         deployed_agents: dict[str, DeployedAgent] = {}
         processes: dict[str, Any] = {}
 
-        try:
-            # Build global environment
-            global_env = dict(job.environment) if job.environment else {}
+        # Wrap entire deployment in semantic trace
+        with tracer.job_deployment(
+            job_id=run_id,
+            job_name=job.job.name,
+            agents=agent_ids,
+            topology=topology_type,
+        ) as job_span:
+            try:
+                # Build global environment
+                global_env = dict(job.environment) if job.environment else {}
 
-            # Auto-configure AGENT_ALLOWED_HOSTS for cross-node communication
-            # Extract all unique hosts from agent URLs to enable A2A communication
-            allowed_hosts = self._build_allowed_hosts(plan)
-            if allowed_hosts:
-                existing = global_env.get("AGENT_ALLOWED_HOSTS", "")
-                if existing:
-                    # Merge with any user-provided hosts
-                    all_hosts = set(existing.split(",")) | allowed_hosts
-                else:
-                    all_hosts = allowed_hosts
-                global_env["AGENT_ALLOWED_HOSTS"] = ",".join(sorted(all_hosts))
-                logger.info(
-                    f"Cross-node allowed hosts: {global_env['AGENT_ALLOWED_HOSTS']}"
+                # Auto-configure AGENT_ALLOWED_HOSTS for cross-node communication
+                # Extract all unique hosts from agent URLs to enable A2A communication
+                allowed_hosts = self._build_allowed_hosts(plan)
+                if allowed_hosts:
+                    existing = global_env.get("AGENT_ALLOWED_HOSTS", "")
+                    if existing:
+                        # Merge with any user-provided hosts
+                        all_hosts = set(existing.split(",")) | allowed_hosts
+                    else:
+                        all_hosts = allowed_hosts
+                    global_env["AGENT_ALLOWED_HOSTS"] = ",".join(sorted(all_hosts))
+                    logger.info(
+                        f"Cross-node allowed hosts: {global_env['AGENT_ALLOWED_HOSTS']}"
+                    )
+
+                # Deploy stage by stage
+                for stage_idx, stage in enumerate(plan.stages):
+                    if not stage:
+                        continue
+
+                    logger.info(f"Stage {stage_idx + 1}/{len(plan.stages)}: {stage}")
+                    tracer.add_event(
+                        job_span,
+                        "stage_started",
+                        {"stage_index": stage_idx + 1, "agents": stage},
+                    )
+
+                    # Deploy all agents in this stage (in parallel if strategy allows)
+                    if job.deployment.strategy == "parallel" or (
+                        job.deployment.strategy == "staged"
+                    ):
+                        # Parallel deployment within stage
+                        tasks = []
+                        for agent_id in stage:
+                            task = self._deploy_agent(
+                                job, agent_id, plan, global_env, run_id, tracer
+                            )
+                            tasks.append((agent_id, task))
+
+                        # Wait for all in parallel
+                        for agent_id, task in tasks:
+                            try:
+                                agent, process = await task
+                                deployed_agents[agent_id] = agent
+                                processes[agent_id] = process
+                            except Exception as e:
+                                raise DeploymentError(
+                                    f"Failed to deploy agent {agent_id}: {e}"
+                                ) from e
+
+                    else:
+                        # Sequential deployment
+                        for agent_id in stage:
+                            try:
+                                agent, process = await self._deploy_agent(
+                                    job, agent_id, plan, global_env, run_id, tracer
+                                )
+                                deployed_agents[agent_id] = agent
+                                processes[agent_id] = process
+                            except Exception as e:
+                                raise DeploymentError(
+                                    f"Failed to deploy agent {agent_id}: {e}"
+                                ) from e
+
+                    tracer.add_event(
+                        job_span,
+                        "stage_completed",
+                        {"stage_index": stage_idx + 1, "deployed_count": len(stage)},
+                    )
+
+                logger.info(f"Deployed {len(deployed_agents)} agents successfully")
+
+                return DeployedJob(
+                    job_id=run_id,
+                    definition=job,
+                    plan=plan,
+                    agents=deployed_agents,
+                    start_time=datetime.now().isoformat(),
+                    status="running",
                 )
 
-            # Deploy stage by stage
-            for stage_idx, stage in enumerate(plan.stages):
-                if not stage:
-                    continue
-
-                logger.info(f"Stage {stage_idx + 1}/{len(plan.stages)}: {stage}")
-
-                # Deploy all agents in this stage (in parallel if strategy allows)
-                if job.deployment.strategy == "parallel" or (
-                    job.deployment.strategy == "staged"
-                ):
-                    # Parallel deployment within stage
-                    tasks = []
-                    for agent_id in stage:
-                        task = self._deploy_agent(
-                            job, agent_id, plan, global_env, run_id
-                        )
-                        tasks.append((agent_id, task))
-
-                    # Wait for all in parallel
-                    for agent_id, task in tasks:
-                        try:
-                            agent, process = await task
-                            deployed_agents[agent_id] = agent
-                            processes[agent_id] = process
-                        except Exception as e:
-                            raise DeploymentError(
-                                f"Failed to deploy agent {agent_id}: {e}"
-                            ) from e
-
-                else:
-                    # Sequential deployment
-                    for agent_id in stage:
-                        try:
-                            agent, process = await self._deploy_agent(
-                                job, agent_id, plan, global_env, run_id
-                            )
-                            deployed_agents[agent_id] = agent
-                            processes[agent_id] = process
-                        except Exception as e:
-                            raise DeploymentError(
-                                f"Failed to deploy agent {agent_id}: {e}"
-                            ) from e
-
-            logger.info(f"Deployed {len(deployed_agents)} agents successfully")
-
-            return DeployedJob(
-                job_id=run_id,
-                definition=job,
-                plan=plan,
-                agents=deployed_agents,
-                start_time=datetime.now().isoformat(),
-                status="running",
-            )
-
-        except Exception as e:
-            # Cleanup on failure
-            logger.error(f"Deployment failed: {e}")
-            logger.info("Cleaning up deployed agents...")
-            await self._cleanup_agents(job, processes)
-            raise
+            except Exception as e:
+                # Cleanup on failure
+                logger.error(f"Deployment failed: {e}")
+                logger.info("Cleaning up deployed agents...")
+                await self._cleanup_agents(job, processes)
+                raise
 
     def _build_allowed_hosts(self, plan: DeploymentPlan) -> set[str]:
         """Extract unique hosts from agent URLs for SSRF allowlist.
@@ -1002,6 +1026,7 @@ class AgentDeployer:
         plan: DeploymentPlan,
         global_env: dict[str, str],
         run_id: str,
+        tracer: Any = None,
     ) -> tuple[DeployedAgent, Any]:
         """Deploy a single agent.
 
@@ -1011,6 +1036,7 @@ class AgentDeployer:
             plan: Deployment plan
             global_env: Global environment variables
             run_id: Unique run identifier for log organization
+            tracer: Semantic tracer for observability
 
         Returns:
             Tuple of (DeployedAgent, process handle)
@@ -1018,6 +1044,10 @@ class AgentDeployer:
         agent_config = job.get_agent(agent_id)
         if not agent_config:
             raise DeploymentError(f"Agent {agent_id} not found in job definition")
+
+        # Use provided tracer or get global one
+        if tracer is None:
+            tracer = get_semantic_tracer()
 
         logger.info(f"Deploying {agent_id}...")
 
@@ -1036,21 +1066,43 @@ class AgentDeployer:
         agent_env["JOB_ID"] = run_id
         agent_env["AGENT_ID"] = agent_id
 
-        # Start agent with run_id for log organization
-        process = await runner.start(
-            agent_config, connected_urls, agent_env, job_id=run_id
-        )
-
-        # Get agent URL
+        # Get agent URL and port
         agent_url = plan.agent_urls.get(agent_id, "")
+        port = agent_config.config.get("port")
 
-        # Wait for health check
-        await self._wait_for_health(
-            agent_url,
-            agent_id,
-            timeout=job.deployment.timeout,
-            retries=job.deployment.health_check.retries,
-        )
+        # Wrap agent startup in lifecycle trace
+        with tracer.agent_lifecycle(
+            agent_id=agent_id,
+            agent_name=agent_config.config.get("name", agent_id),
+            action="start",
+            port=port,
+            host=agent_config.deployment.host or "localhost",
+        ) as agent_span:
+            # Start agent with run_id for log organization
+            process = await runner.start(
+                agent_config, connected_urls, agent_env, job_id=run_id
+            )
+
+            tracer.add_event(
+                agent_span,
+                "process_started",
+                {
+                    "pid": getattr(process, "pid", None),
+                    "target": agent_config.deployment.target,
+                },
+            )
+
+            # Wait for health check
+            await self._wait_for_health(
+                agent_url,
+                agent_id,
+                timeout=job.deployment.timeout,
+                retries=job.deployment.health_check.retries,
+                tracer=tracer,
+                agent_span=agent_span,
+            )
+
+            tracer.add_event(agent_span, "health_check_passed", {"url": agent_url})
 
         logger.info(f"Agent {agent_id} deployed at {agent_url}")
 
@@ -1071,7 +1123,13 @@ class AgentDeployer:
         return deployed_agent, process
 
     async def _wait_for_health(
-        self, url: str, agent_id: str, timeout: int, retries: int
+        self,
+        url: str,
+        agent_id: str,
+        timeout: int,
+        retries: int,
+        tracer: Any = None,
+        agent_span: Any = None,
     ) -> None:
         """Wait for agent to become healthy.
 
@@ -1080,6 +1138,8 @@ class AgentDeployer:
             agent_id: Agent identifier
             timeout: Total timeout in seconds
             retries: Number of retries
+            tracer: Semantic tracer for observability
+            agent_span: Parent span to add events to
 
         Raises:
             DeploymentError: If agent doesn't become healthy
@@ -1100,8 +1160,30 @@ class AgentDeployer:
                     if response.status_code == 200:
                         return  # Healthy!
 
-                except Exception:
-                    pass
+                    # Add event for non-200 response
+                    if tracer and agent_span:
+                        tracer.add_event(
+                            agent_span,
+                            "health_check_attempt",
+                            {
+                                "attempt": attempt + 1,
+                                "status_code": response.status_code,
+                                "success": False,
+                            },
+                        )
+
+                except Exception as e:
+                    # Add event for failed attempt
+                    if tracer and agent_span:
+                        tracer.add_event(
+                            agent_span,
+                            "health_check_attempt",
+                            {
+                                "attempt": attempt + 1,
+                                "error": str(e)[:100],
+                                "success": False,
+                            },
+                        )
 
                 if attempt < retries - 1:
                     await asyncio.sleep(interval)
