@@ -249,8 +249,12 @@ class SemanticTracer:
         if agent_name and "agent.name" not in span_attrs:
             span_attrs["agent.name"] = agent_name
 
+        # Ensure consistent trace_id across all spans in the same request
+        if self._trace_id is None:
+            self._trace_id = str(uuid.uuid4())
+
         return SpanData(
-            trace_id=self._trace_id or str(uuid.uuid4()),
+            trace_id=self._trace_id,
             span_id=str(uuid.uuid4())[:8],
             parent_span_id=parent.span_id if parent else None,
             name=name,
