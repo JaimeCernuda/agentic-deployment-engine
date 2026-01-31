@@ -1,6 +1,7 @@
 """Claude Agent SDK backend implementation.
 
 Provides integration with the Claude Agent SDK for agentic inference.
+Uses SDK hooks for true internal observability of the agentic loop.
 """
 
 import asyncio
@@ -9,14 +10,136 @@ import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
+from claude_agent_sdk import (
+    ClaudeAgentOptions,
+    ClaudeSDKClient,
+    HookContext,
+    HookMatcher,
+    PostToolUseHookInput,
+    PreToolUseHookInput,
+)
 
 from ..config import settings
 from ..core.exceptions import AgentBackendError
-from ..observability.semantic import get_semantic_tracer
+from ..observability.semantic import SpanData, get_semantic_tracer
 from .base import AgentBackend, BackendConfig, QueryResult
 
 logger = logging.getLogger(__name__)
+
+
+# Track active tool spans for correlation between PreToolUse and PostToolUse
+_active_tool_spans: dict[str, SpanData] = {}
+
+
+async def _pre_tool_use_hook(
+    hook_input: PreToolUseHookInput,
+    matcher: str | None,
+    context: HookContext,
+) -> dict[str, Any]:
+    """Hook called BEFORE each tool use inside the agentic loop.
+
+    This fires INSIDE the loop, giving us visibility into the agent's
+    internal reasoning and tool selection.
+
+    Args:
+        hook_input: Contains tool_name, tool_input, session_id, etc.
+        matcher: Optional tool name matcher that triggered this hook.
+        context: Hook context with signal for cancellation.
+
+    Returns:
+        Empty dict to continue normal execution.
+    """
+    tracer = get_semantic_tracer()
+    tool_name = hook_input["tool_name"]
+    tool_input = hook_input.get("tool_input", {})
+
+    # Create a span for this tool call
+    span = tracer._create_span(
+        name=f"tool:{tool_name}",
+        level="agent",
+        category="tool_call",
+        attributes={
+            "tool.name": tool_name,
+            "tool.input": json.dumps(tool_input, default=str)[:500]
+            if tool_input
+            else None,
+            "hook.type": "PreToolUse",
+            "session.id": hook_input.get("session_id"),
+        },
+    )
+
+    # Store span for correlation with PostToolUse
+    span_key = f"{hook_input.get('session_id', 'default')}:{tool_name}"
+    _active_tool_spans[span_key] = span
+
+    logger.debug(
+        f"[HOOK] PreToolUse: {tool_name} with input: {str(tool_input)[:100]}..."
+    )
+
+    return {}
+
+
+async def _post_tool_use_hook(
+    hook_input: PostToolUseHookInput,
+    matcher: str | None,
+    context: HookContext,
+) -> dict[str, Any]:
+    """Hook called AFTER each tool use inside the agentic loop.
+
+    This fires INSIDE the loop, giving us the tool's actual result
+    before the agent processes it.
+
+    Args:
+        hook_input: Contains tool_name, tool_input, tool_response, session_id, etc.
+        matcher: Optional tool name matcher that triggered this hook.
+        context: Hook context with signal for cancellation.
+
+    Returns:
+        Empty dict to continue normal execution.
+    """
+    tracer = get_semantic_tracer()
+    tool_name = hook_input["tool_name"]
+    tool_response = hook_input.get("tool_response")
+
+    # Find and finish the span from PreToolUse
+    span_key = f"{hook_input.get('session_id', 'default')}:{tool_name}"
+    span = _active_tool_spans.pop(span_key, None)
+
+    if span:
+        # Record the tool result
+        tracer.record_tool_result(span, tool_response, success=True)
+        tracer._finish_span(span)
+    else:
+        # Create a new span if we missed the PreToolUse (shouldn't happen normally)
+        with tracer.tool_call(tool_name, hook_input.get("tool_input")) as span:
+            tracer.record_tool_result(span, tool_response, success=True)
+
+    result_str = str(tool_response)[:100] if tool_response else "None"
+    logger.debug(f"[HOOK] PostToolUse: {tool_name} returned: {result_str}...")
+
+    return {}
+
+
+def _create_tracing_hooks() -> dict[str, list[HookMatcher]]:
+    """Create SDK hooks for semantic tracing inside the agentic loop.
+
+    Returns:
+        Dictionary of hook type -> list of HookMatcher for ClaudeAgentOptions.
+    """
+    return {
+        "PreToolUse": [
+            HookMatcher(
+                matcher=None,  # Match all tools
+                hooks=[_pre_tool_use_hook],
+            )
+        ],
+        "PostToolUse": [
+            HookMatcher(
+                matcher=None,  # Match all tools
+                hooks=[_post_tool_use_hook],
+            )
+        ],
+    }
 
 
 class ClaudeSDKBackend(AgentBackend):
@@ -59,13 +182,15 @@ class ClaudeSDKBackend(AgentBackend):
             if self._initialized:
                 return
 
-            # Build ClaudeAgentOptions from config
+            # Build ClaudeAgentOptions from config with tracing hooks
+            # The hooks fire INSIDE the agentic loop for true internal visibility
             self._options = ClaudeAgentOptions(
                 mcp_servers=self.config.mcp_servers,
                 allowed_tools=self.config.allowed_tools,
                 system_prompt=self.config.system_prompt,
                 permission_mode="bypassPermissions",
                 setting_sources=[],
+                hooks=_create_tracing_hooks(),  # SDK hooks for internal tracing
                 **self.config.extra_options,
             )
 
@@ -127,56 +252,33 @@ class ClaudeSDKBackend(AgentBackend):
 
                 content = getattr(message, "content", None)
                 if content is not None:
-                    # Build full content string for LLM message tracing
+                    # Build content summary for framework-level tracing
+                    # (detailed tool tracing is handled by SDK hooks inside the loop)
                     content_parts: list[str] = []
                     for block in content:
                         block_type = getattr(block, "type", None)
                         text = getattr(block, "text", None)
                         tool_name = getattr(block, "name", None)
-                        tool_input = getattr(block, "input", None)
 
                         if text is not None:
                             response += text
                             content_parts.append(text)
 
                         if tool_name is not None:
-                            # This is a tool_use block - trace the tool call
+                            # Track tool usage at framework level
+                            # (internal tool execution is traced by PreToolUse/PostToolUse hooks)
                             tool_count += 1
                             tools_used_names.append(tool_name)
+                            content_parts.append(f"[tool:{tool_name}]")
 
-                            # Serialize tool input for tracing
-                            input_str = (
-                                json.dumps(tool_input, default=str)
-                                if tool_input
-                                else "{}"
-                            )
-                            content_parts.append(
-                                f"[tool_use: {tool_name}({input_str})]"
-                            )
-
-                            # Trace the tool call
-                            with tracer.tool_call(tool_name, tool_input) as span:
-                                tracer.add_event(
-                                    span,
-                                    "tool_invoked",
-                                    {"block_type": block_type or "tool_use"},
-                                )
-
-                        # Handle tool_result blocks
                         if block_type == "tool_result":
-                            tool_use_id = getattr(block, "tool_use_id", None)
                             tool_content = getattr(block, "content", None)
-                            is_error = getattr(block, "is_error", False)
-
-                            result_str = str(tool_content)[:200] if tool_content else ""
-                            content_parts.append(f"[tool_result: {result_str}...]")
-
-                            logger.debug(
-                                f"Tool result for {tool_use_id}: "
-                                f"{'error' if is_error else 'success'}"
+                            result_preview = (
+                                str(tool_content)[:50] if tool_content else ""
                             )
+                            content_parts.append(f"[result:{result_preview}...]")
 
-                    # Trace the full LLM message
+                    # Framework-level: trace each LLM message in the external response stream
                     full_content = " ".join(content_parts) if content_parts else ""
                     with tracer.llm_message(
                         role=role,
@@ -189,7 +291,7 @@ class ClaudeSDKBackend(AgentBackend):
                             {
                                 "message_index": message_count,
                                 "stop_reason": stop_reason,
-                                "has_tool_use": tool_count > 0,
+                                "tool_count": tool_count,
                             },
                         )
 
@@ -248,7 +350,8 @@ class ClaudeSDKBackend(AgentBackend):
                 message_count += 1
                 role = getattr(message, "role", "unknown")
 
-                # Trace each streamed message
+                # Build content summary for framework-level tracing
+                # (internal tool execution is traced by SDK hooks)
                 content = getattr(message, "content", None)
                 content_str = ""
                 if content:
@@ -258,13 +361,9 @@ class ClaudeSDKBackend(AgentBackend):
                         if text:
                             content_str += text
                         if tool_name:
-                            tool_input = getattr(block, "input", None)
-                            content_str += f"[tool: {tool_name}]"
-                            # Trace tool call in streaming mode
-                            with tracer.tool_call(tool_name, tool_input):
-                                pass  # Tool traced
+                            content_str += f"[tool:{tool_name}]"
 
-                # Trace the LLM message
+                # Framework-level: trace the streamed LLM message
                 with tracer.llm_message(
                     role=role,
                     content=content_str,
