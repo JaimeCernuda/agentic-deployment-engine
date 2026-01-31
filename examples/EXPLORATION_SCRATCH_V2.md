@@ -383,4 +383,131 @@ curl -s -X POST http://localhost:9000/query -d '{"query": "What is the weather i
 - #18: Cross-node deployment doesn't configure AGENT_ALLOWED_HOSTS for remote agents - FIXED
 
 ### Commits
-- To be committed: fix for cross-node ALLOWED_HOSTS auto-configuration
+- `01326e9` - fix: auto-configure AGENT_ALLOWED_HOSTS for cross-node A2A communication
+
+---
+
+# Iteration 11: Log Quality & Observability (P3)
+**Time:** 18:17 - 18:30
+**Goal:** Verify log quality and structure
+
+### Observations
+1. **Logs are per-job AND per-agent** - Directory structure: `logs/jobs/{job-id}/{agent}.log`
+2. **Three log files per agent**: `.log` (structured), `.stdout.log`, `.stderr.log`
+3. **Comprehensive logging**:
+   - Timestamps with milliseconds
+   - Logger name (agent name)
+   - Log level (INFO/DEBUG)
+   - Source file and line number
+   - Full message content
+4. **A2A communication fully logged**:
+   - Query text and length
+   - Every message type (SystemMessage, AssistantMessage, UserMessage, ResultMessage)
+   - Tool usage with inputs and outputs
+   - Response size and timing
+5. **Client pool operations logged** - Pool init, client acquisition/release
+6. **No truncation observed** - Full tool results logged (hundreds of chars)
+7. **No interleaved logs** - Each agent has separate log files
+
+### Log Content Sample
+```
+2026-01-30 18:22:37,878 - Controller Agent - DEBUG - [base.py:469] -     Tool: mcp__controller_agent__query_agent
+2026-01-30 18:22:37,878 - Controller Agent - DEBUG - [base.py:472] -     Input: {'agent_url': 'http://localhost:9001', 'query': 'What is the weather in Tokyo?'}
+2026-01-30 18:22:50,048 - Controller Agent - DEBUG - [base.py:480] -     Result content: [{'type': 'text', 'text': "Here's the current weather..."}]
+```
+
+### Missing Features (for future)
+- [FEATURE-11]: OTEL trace IDs in logs for distributed tracing
+- [FEATURE-12]: Log rotation policy (logs accumulate indefinitely)
+- [FEATURE-13]: Log level configuration per agent via job YAML
+
+### Verdict
+P3 VERIFIED COMPLETE - Log quality is good for debugging and monitoring
+
+---
+
+# Iteration 12: Multi-Turn Context (P2)
+**Time:** 18:30 - 18:40
+**Goal:** Verify multi-turn conversation context works
+
+### Commands Run
+```bash
+# Establish context in session
+uv run deploy query simple-weather-workflow-* "Remember: my favorite city is Tokyo" --session my-test-session
+# I'll remember that your favorite city is Tokyo...
+
+# Recall context
+uv run deploy query simple-weather-workflow-* "What is my favorite city?" --session my-test-session
+# Your favorite city is Tokyo!
+
+# Use context for query
+uv run deploy query simple-weather-workflow-* "What is the weather in my favorite city?" --session my-test-session
+# Here's the current weather in your favorite city, Tokyo...
+
+# New session = no context
+uv run deploy query simple-weather-workflow-* "What is my favorite city?" --session brand-new-session
+# I don't have any information about your favorite city...
+```
+
+### Observations
+1. **Sessions work correctly** - Same session ID preserves context across queries
+2. **New sessions start fresh** - Different session ID = no context
+3. **Context used for A2A routing** - Controller remembered Tokyo and queried weather agent
+4. **Session IDs in output** - Response shows session ID used
+5. **Implementation confirmed** - Uses SessionManager from src/agents/sessions.py
+
+### Session Behavior
+- `--session <id>` - Use specific session, context persists
+- No `--session` flag - New random session each query (stateless behavior)
+- Server-side session storage with LRU eviction
+
+### Verdict
+P2 VERIFIED COMPLETE - Multi-turn context works via --session flag
+
+---
+
+# Iteration 13: Alternative Backends (P6)
+**Time:** 18:35 - 18:45
+**Goal:** Test CrewAI/Ollama and Gemini backends
+
+### Test Setup
+1. Ollama running locally with llama3.2 model
+2. Job configured with AGENT_BACKEND_TYPE=crewai
+
+### Commands Run
+```bash
+# Deploy Ollama test job
+uv run deploy start examples/jobs/ollama-test.yaml
+
+# Check backend in logs
+grep "Using backend" logs/jobs/ollama-test-*/weather.log
+# "Using backend: crewai"
+
+# Query the agent
+uv run deploy query ollama-test-* "What is the weather in Tokyo?"
+# Returns weather data successfully
+```
+
+### Observations
+1. **Backend detection works** - Log shows "Using backend: crewai"
+2. **Query returns data** - Weather agent returns formatted response
+3. **BUG: Backend not actually used!** - Despite log saying "crewai", queries still go through Claude SDK
+4. **Evidence**: Log shows "Sending query to Claude..." and Claude SDK message types (AssistantMessage, etc.)
+5. **Root cause**: `_handle_query()` in base.py uses hardcoded Claude SDK client pool, ignores `self._backend`
+
+### Bug Details
+In `src/agents/base.py`:
+- Line 254: Backend created correctly (`self._backend = create_backend(...)`)
+- Line 401-499: `_handle_query()` uses Claude SDK client pool exclusively
+- The `self._backend.query()` method is NEVER called
+
+### Impact
+- AGENT_BACKEND_TYPE environment variable has no effect
+- All agents use Claude SDK regardless of configuration
+- CrewAI/Ollama and Gemini backends are dead code
+
+### GitHub Issue Needed
+- [BUG-8]: Alternative backends (CrewAI, Gemini) are configured but never used
+
+### Verdict
+P6 NOT WORKING - Backend selection is broken, all queries go through Claude SDK
