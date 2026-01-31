@@ -570,9 +570,10 @@ P6 NOT WORKING - Backend selection is broken, all queries go through Claude SDK
 
 ## Remaining Work
 1. ~~Fix #19: Wire up alternative backends to actually be used~~ FIXED
-2. Integrate HealthMonitor into deployer for auto-restart
+2. ~~Integrate HealthMonitor into deployer for auto-restart~~ INTEGRATED
 3. Test protocol options (gRPC support?)
 4. Review documentation completeness
+5. Implement actual auto-restart in HealthMonitor (restart callback)
 
 ---
 
