@@ -177,7 +177,7 @@ The extraction was performed using semantic analysis to identify the most
 relevant information from the provided text.
 """
 
-    return {"content": [{"type": "text", "text": summary[:max_points * 200]}]}
+    return {"content": [{"type": "text", "text": summary[: max_points * 200]}]}
 
 
 @tool(
