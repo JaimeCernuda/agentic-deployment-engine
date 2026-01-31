@@ -10,6 +10,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from ..core.exceptions import AgentBackendError, ConfigurationError
+from ..observability.semantic import get_semantic_tracer
 from .base import AgentBackend, BackendConfig, QueryResult
 
 logger = logging.getLogger(__name__)
@@ -156,6 +157,8 @@ class CrewAIBackend(AgentBackend):
         if self._agent is None:
             raise AgentBackendError(self.name, "CrewAI agent not initialized")
 
+        tracer = get_semantic_tracer()
+
         try:
             from crewai import Crew, Task
 
@@ -175,12 +178,36 @@ class CrewAIBackend(AgentBackend):
                 verbose=False,
             )
 
+            # Trace the LLM query execution
+            with tracer.llm_message(
+                role="user",
+                content=prompt,
+                model=f"ollama/{self.ollama_model}",
+            ) as user_span:
+                tracer.add_event(
+                    user_span,
+                    "crewai_task_created",
+                    {"task_description": prompt[:200]},
+                )
+
             # CrewAI is synchronous, run in thread pool
             logger.debug(f"Executing CrewAI query: {prompt[:100]}...")
             result = await asyncio.to_thread(crew.kickoff)
 
             # Extract response text
             response_text = str(result)
+
+            # Trace the response
+            with tracer.llm_message(
+                role="assistant",
+                content=response_text,
+                model=f"ollama/{self.ollama_model}",
+            ) as response_span:
+                tracer.add_event(
+                    response_span,
+                    "crewai_task_completed",
+                    {"response_length": len(response_text)},
+                )
 
             return QueryResult(
                 response=response_text,
@@ -209,9 +236,20 @@ class CrewAIBackend(AgentBackend):
         Yields:
             The complete response (no true streaming support)
         """
+        tracer = get_semantic_tracer()
+
         # CrewAI doesn't support streaming natively
         # Execute as regular query and yield result
         result = await self.query(prompt, context)
+
+        # Trace the streamed response
+        with tracer.llm_message(
+            role="assistant",
+            content=result.response,
+            model=f"ollama/{self.ollama_model}",
+        ) as span:
+            tracer.add_event(span, "stream_complete", {"chunks": 1})
+
         yield {"type": "response", "content": result.response}
 
     async def cleanup(self) -> None:
