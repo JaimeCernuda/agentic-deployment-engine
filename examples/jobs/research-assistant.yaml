@@ -1,0 +1,85 @@
+# Research Assistant Pipeline
+# A multi-agent system for research, summarization, and fact-checking
+
+job:
+  name: research-assistant
+  version: 1.0.0
+  description: Research assistant with searcher, summarizer, and fact-checker agents
+  tags:
+    - research
+    - fact-check
+    - summarization
+    - pipeline
+
+agents:
+  # Searcher agent - web search and content fetching
+  - id: searcher
+    type: SearcherAgent
+    module: examples.agents.searcher_agent
+    config:
+      port: 9021
+      name: Searcher Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Summarizer agent - extracts key points
+  - id: summarizer
+    type: SummarizerAgent
+    module: examples.agents.summarizer_agent
+    config:
+      port: 9022
+      name: Summarizer Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Fact Checker agent - verifies claims
+  - id: fact_checker
+    type: FactCheckerAgent
+    module: examples.agents.fact_checker_agent
+    config:
+      port: 9023
+      name: Fact Checker Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Research Coordinator - orchestrates the pipeline
+  - id: coordinator
+    type: ResearchCoordinatorAgent
+    module: examples.agents.research_coordinator_agent
+    config:
+      port: 9020
+      name: Research Coordinator
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+topology:
+  type: hub-spoke
+  hub: coordinator
+  spokes:
+    - searcher
+    - summarizer
+    - fact_checker
+
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+execution:
+  entry_point: coordinator
+  auto_start: true

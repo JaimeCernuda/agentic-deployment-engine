@@ -56,6 +56,11 @@ linter-agent = "examples.agents.linter_agent:main"
 security-agent = "examples.agents.security_agent:main"
 complexity-agent = "examples.agents.complexity_agent:main"
 review-coordinator = "examples.agents.review_coordinator_agent:main"
+# Research assistant pipeline agents
+searcher-agent = "examples.agents.searcher_agent:main"
+summarizer-agent = "examples.agents.summarizer_agent:main"
+fact-checker-agent = "examples.agents.fact_checker_agent:main"
+research-coordinator = "examples.agents.research_coordinator_agent:main"
 # Start all agents
 start-all = "src.start_all:main"
 # Job deployment CLI

@@ -1471,6 +1471,79 @@ The earlier issue where Claude tried ports 8000, 8001 instead of 9001, 9002 was 
 
 ---
 
-## Iteration 30: Commit and Push
-**Time:** 2026-01-30 22:40
-**Goal:** Commit lint fixes and push to GitHub
+## Iteration 30: Research Assistant Pipeline
+**Time:** 2026-01-30 22:45
+**Goal:** Build and test Research Assistant use case
+
+### Files Created
+
+**Tools:** `examples/tools/research_tools.py`
+- `web_search` - Search the web for information
+- `fetch_url` - Fetch and extract content from URLs
+- `extract_key_points` - Extract key points from text
+- `verify_claim` - Verify claim accuracy
+- `find_sources` - Find authoritative sources
+
+**Agents:**
+- `examples/agents/searcher_agent.py` - Port 9021
+- `examples/agents/summarizer_agent.py` - Port 9022
+- `examples/agents/fact_checker_agent.py` - Port 9023
+- `examples/agents/research_coordinator_agent.py` - Port 9020
+
+**Job Definition:** `examples/jobs/research-assistant.yaml`
+- 4 agents in hub-spoke topology
+- Coordinator orchestrates searcher, summarizer, fact_checker
+
+### Bug Fix
+Fixed all research agents: Changed `asyncio.run(agent.start())` to `agent.run()`
+- BaseA2AAgent uses `run()` method, not `start()`
+
+### Deployment Test: PASS
+```bash
+uv run deploy start examples/jobs/research-assistant.yaml
+# Job: research-assistant-20260130-224544
+# All 4 agents healthy
+```
+
+### Query Test: PASS
+```bash
+curl -s -X POST http://localhost:9020/query \
+  -d '{"query": "Search for renewable energy information"}'
+# Response: Comprehensive research report with:
+# - Types of renewable energy (solar, wind, hydro, geothermal, biomass)
+# - Global adoption statistics (4,448 GW capacity, 15.1% growth)
+# - Environmental benefits (CO2 comparisons, health impacts)
+# - Economic trends ($3.3T investment, cost competitiveness)
+# - Technology breakthroughs (perovskite cells, solid-state batteries)
+# - 12 authoritative sources cited (IEA, IRENA, Ember, WEF, UN, etc.)
+```
+
+### Architecture
+```
+                    ┌────────────────────┐
+                    │    Coordinator     │
+                    │    (Port 9020)     │
+                    └─────────┬──────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        ▼                     ▼                     ▼
+┌───────────────┐     ┌───────────────┐     ┌───────────────┐
+│   Searcher    │     │  Summarizer   │     │ Fact Checker  │
+│  (Port 9021)  │     │  (Port 9022)  │     │  (Port 9023)  │
+└───────────────┘     └───────────────┘     └───────────────┘
+```
+
+### Entry Points Added to pyproject.toml
+- `searcher-agent`
+- `summarizer-agent`
+- `fact-checker-agent`
+- `research-coordinator`
+
+### Verdict
+Research Assistant use case COMPLETE - produces comprehensive, well-cited research reports
+
+---
+
+## Iteration 31: Commit and Push
+**Time:** 2026-01-30 22:50
+**Goal:** Commit all changes and push to GitHub
