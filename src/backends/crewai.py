@@ -87,7 +87,9 @@ class CrewAIBackend(AgentBackend):
                 # Check if model is available
                 models = response.json().get("models", [])
                 model_names = [m.get("name", "").split(":")[0] for m in models]
-                if self.ollama_model not in model_names:
+                # Strip tag from configured model for comparison
+                model_base = self.ollama_model.split(":")[0]
+                if model_base not in model_names:
                     available = ", ".join(model_names) if model_names else "none"
                     raise ConfigurationError(
                         f"Model '{self.ollama_model}' not found in Ollama. "

@@ -399,10 +399,10 @@ class BaseA2AAgent(ABC):
         return await self._get_pooled_client()
 
     async def _handle_query(self, query: str, history: str = "") -> str:
-        """Handle query using pooled claude-code-sdk client.
+        """Handle query using the configured backend.
 
-        Uses connection pooling for 10-100x better performance than
-        creating a fresh client per query.
+        Dispatches to the appropriate backend (Claude SDK, CrewAI, Gemini)
+        based on AGENT_BACKEND_TYPE configuration.
 
         Args:
             query: The user's query string.
@@ -416,92 +416,26 @@ class BaseA2AAgent(ABC):
         if history:
             self.logger.debug(f"Using conversation history ({len(history)} chars)")
 
-        client = None
+        # Build the full query with conversation history context
+        if history:
+            full_query = f"{history}\n\n[Current Query]: {query}"
+        else:
+            full_query = query
+
         try:
-            # Get a pre-connected client from the pool
-            client = await self._get_pooled_client()
-            self.logger.debug("Using pooled client for query")
-
-            # Build the full query with conversation history context
-            if history:
-                full_query = f"{history}\n\n[Current Query]: {query}"
-            else:
-                full_query = query
-
-            self.logger.debug("Sending query to Claude...")
-            await client.query(full_query)
-
-            response = ""
-            message_count = 0
-            tool_use_count = 0
-
-            self.logger.debug("Receiving response...")
-            async for message in client.receive_response():
-                message_count += 1
-                message_type = type(message).__name__
-                self.logger.debug(f"Message {message_count}: {message_type}")
-
-                # Log message details based on type (using getattr for type safety)
-                role = getattr(message, "role", None)
-                if role is not None:
-                    self.logger.debug(f"  Role: {role}")
-
-                content = getattr(message, "content", None)
-                if content is not None:
-                    for i, block in enumerate(content):
-                        block_type = type(block).__name__
-                        self.logger.debug(f"  Content block {i}: {block_type}")
-
-                        text = getattr(block, "text", None)
-                        if text is not None:
-                            # Use configurable truncation (0 = unlimited)
-                            max_len = settings.log_max_content_length
-                            if max_len > 0 and len(text) > max_len:
-                                text_preview = text[:max_len] + "..."
-                            else:
-                                text_preview = text
-                            self.logger.debug(f"    Text: {text_preview}")
-                            response += text
-
-                        tool_name = getattr(block, "name", None)
-                        if tool_name is not None:
-                            tool_use_count += 1
-                            self.logger.debug(f"    Tool: {tool_name}")
-                            tool_input = getattr(block, "input", None)
-                            if tool_input is not None:
-                                self.logger.debug(f"    Input: {tool_input}")
-
-                        # Log tool results (success or error)
-                        tool_use_id = getattr(block, "tool_use_id", None)
-                        if tool_use_id is not None:
-                            self.logger.debug(f"    Tool Result for: {tool_use_id}")
-                            result_content = getattr(block, "content", None)
-                            if result_content is not None:
-                                self.logger.debug(
-                                    f"    Result content: {result_content}"
-                                )
-                            is_error = getattr(block, "is_error", None)
-                            if is_error is not None:
-                                self.logger.debug(f"    Is error: {is_error}")
-
-                stop_reason = getattr(message, "stop_reason", None)
-                if stop_reason is not None:
-                    self.logger.debug(f"  Stop reason: {stop_reason}")
+            # Use the configured backend for query execution
+            self.logger.debug(f"Sending query via {self._backend.name} backend...")
+            result = await self._backend.query(full_query)
 
             self.logger.info(
-                f"Query completed. Messages: {message_count}, "
-                f"Tools used: {tool_use_count}, Response: {len(response)} chars"
+                f"Query completed. Messages: {result.messages_count}, "
+                f"Tools used: {result.tools_used}, Response: {len(result.response)} chars"
             )
-            return response or "No response generated"
+            return result.response
 
         except Exception as e:
             self.logger.error(f"Error handling query: {e}", exc_info=True)
             return f"Error: {str(e)}"
-
-        finally:
-            # Always return client to pool
-            if client:
-                await self._return_client(client)
 
     @abstractmethod
     def _get_skills(self) -> list[dict[str, Any]]:
