@@ -72,9 +72,11 @@ class GeminiCLIBackend(AgentBackend):
         # Verify it works
         try:
             # On Windows, .cmd files need shell execution
+            # Also pipe stdin to prevent CLI from waiting for interactive input
             if IS_WINDOWS:
                 process = await asyncio.create_subprocess_shell(
                     f'"{self._gemini_path}" --version',
+                    stdin=asyncio.subprocess.DEVNULL,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -82,6 +84,7 @@ class GeminiCLIBackend(AgentBackend):
                 process = await asyncio.create_subprocess_exec(
                     self._gemini_path,
                     "--version",
+                    stdin=asyncio.subprocess.DEVNULL,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -136,17 +139,20 @@ class GeminiCLIBackend(AgentBackend):
 
         try:
             # On Windows, .cmd files need shell execution
+            # Pipe stdin to DEVNULL to prevent CLI from waiting for interactive input
             if IS_WINDOWS:
                 # Join command for shell execution, escaping quotes in prompt
                 cmd_str = " ".join(f'"{c}"' if " " in c or '"' in c else c for c in cmd)
                 process = await asyncio.create_subprocess_shell(
                     cmd_str,
+                    stdin=asyncio.subprocess.DEVNULL,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
             else:
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
+                    stdin=asyncio.subprocess.DEVNULL,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
@@ -218,16 +224,19 @@ class GeminiCLIBackend(AgentBackend):
 
         try:
             # On Windows, .cmd files need shell execution
+            # Pipe stdin to DEVNULL to prevent CLI from waiting for interactive input
             if IS_WINDOWS:
                 cmd_str = " ".join(f'"{c}"' if " " in c or '"' in c else c for c in cmd)
                 process = await asyncio.create_subprocess_shell(
                     cmd_str,
+                    stdin=asyncio.subprocess.DEVNULL,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
             else:
                 process = await asyncio.create_subprocess_exec(
                     *cmd,
+                    stdin=asyncio.subprocess.DEVNULL,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
