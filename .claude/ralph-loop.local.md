@@ -1,6 +1,6 @@
 ---
 active: true
-iteration: 14
+iteration: 15
 max_iterations: 100
 completion_promise: null
 started_at: "2026-01-31T06:32:48Z"
@@ -19,7 +19,7 @@ started_at: "2026-01-31T06:32:48Z"
 - Error states (timeout, connection failed) are captured
 
 **Critical Gaps (Must Fix):**
-1. **Multiple trace files per query** - Each agent writes its own file. Need unified trace per job.
+1. ~~**Multiple trace files per query**~~ - ✅ FIXED (commit 45429de) - unified_trace.json merges all spans
 2. **LLM duration timing is 0ms** - We capture when messages are received, not inference time.
 3. **Port hallucination** - Claude model ignores system prompt URLs and uses wrong ports.
 
@@ -29,7 +29,7 @@ started_at: "2026-01-31T06:32:48Z"
 
 | Phase | Status | Notes |
 |-------|--------|-------|
-| 1. Semantic Tracing | ⚠️ PARTIAL | Works but needs unified traces |
+| 1. Semantic Tracing | ✅ COMPLETE | Unified traces added (45429de) |
 | 2. Dynamic Registry | ❌ NOT STARTED | No `src/registry/service.py` exists |
 | 3. Interactive CLI | ❌ NOT STARTED | No REPL mode |
 | 4. Scale Testing | ⚠️ PARTIAL | 11 agents deployed, 10 concurrent queries tested |
@@ -49,12 +49,13 @@ started_at: "2026-01-31T06:32:48Z"
 | SDK hooks (PreToolUse/PostToolUse) | - | Yes - tool calls captured |
 | Agent lifecycle events | - | Yes - agent:start spans |
 | Tracing enabled by default | - | Yes - deployer sets env vars |
+| **Unified trace files** | **45429de** | **Yes - `uv run deploy traces` command** |
 
 ### What's NOT Done ❌
 
 | Issue | Impact | Fix Required |
 |-------|--------|--------------|
-| Multiple trace files per query | Hard to analyze - 4+ files per query | Aggregate spans to single file per job |
+| ~~Multiple trace files per query~~ | ~~Hard to analyze~~ | ✅ FIXED (45429de) |
 | LLM durations are 0ms | Can't measure inference time | Wrap entire query() call, not just message receipt |
 | Token counts not captured | No cost/usage visibility | SDK doesn't expose - need API-level tracing |
 | External MCP not tested | Unknown if stdio/remote MCP traced | Create test agent with external MCP |
@@ -108,9 +109,9 @@ Claude model ignores system prompt URLs and uses wrong ports (8001 instead of 90
 
 ---
 
-## Critical Next Steps (Priority Order)
+## Critical Next Steps
 
-### 1. Unified Trace Files (HIGH PRIORITY)
+### 1. Unified Trace Files
 **Problem:** Each agent writes its own trace file. A 4-agent query creates 4 files.
 
 **Solution:** Modify `JSONFileExporter` to:
@@ -121,7 +122,7 @@ Claude model ignores system prompt URLs and uses wrong ports (8001 instead of 90
 **Files to modify:**
 - `src/observability/semantic.py` - JSONFileExporter
 
-### 2. Fix Port Hallucination (MEDIUM PRIORITY)
+### 2. Fix Port Hallucination
 **Problem:** Controller tries wrong ports despite correct URLs in system prompt.
 
 **Possible fixes:**
@@ -133,7 +134,7 @@ Claude model ignores system prompt URLs and uses wrong ports (8001 instead of 90
 - `src/agents/base.py` - system prompt construction
 - `src/agents/transport.py` - A2A transport
 
-### 3. External MCP Testing (LOW PRIORITY)
+### 3. External MCP Testing
 **Problem:** Never tested with stdio or remote MCP servers.
 
 **Action:** Create test agent with external MCP server, verify hooks capture calls.
@@ -181,17 +182,6 @@ Claude model ignores system prompt URLs and uses wrong ports (8001 instead of 90
 
 ---
 
-## Commits This Session
-
-| Hash | Message |
-|------|---------|
-| efa3b97 | feat: expand scale testing to 11 agents with AGENT_PORT support |
-| 1379f28 | docs: add concurrent query load test results |
-| efb095a | fix: resolve CI lint and type check errors |
-| fecdd89 | style: format semantic.py |
-
----
-
 ## Honest Assessment
 
 **What I claimed was done but isn't:**
@@ -209,15 +199,3 @@ Claude model ignores system prompt URLs and uses wrong ports (8001 instead of 90
 2. Port hallucination fix (critical for multi-agent communication)
 3. LLM duration timing (nice to have)
 4. Token usage tracking (nice to have)
-
----
-
-## Next Iteration Focus
-
-**Priority 1:** Implement unified trace files
-- Modify JSONFileExporter to aggregate by job_id
-- Single trace file per job with all agent spans
-
-**Priority 2:** Investigate port hallucination
-- Analyze system prompt construction
-- Test with explicit URL constraints in prompt
