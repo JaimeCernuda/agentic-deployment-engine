@@ -1,6 +1,6 @@
 ---
 active: true
-iteration: 11
+iteration: 12
 max_iterations: 100
 completion_promise: null
 started_at: "2026-01-31T06:32:48Z"
@@ -188,6 +188,28 @@ Open Questions (from user) - HONEST STATUS:
 - Token counts/usage? ❌ NOT CAPTURED
   - SDK doesn't expose token counts in hooks
   - Would need API-level tracing or Claude SDK changes 
+
+### Phase 5 Complex Workflow Verification (Iteration 11)
+
+**research-assistant job (4 agents: coordinator, searcher, summarizer, fact_checker):**
+- Query: "What is solar energy?"
+- Response: Comprehensive answer with Key Points, Quick Facts table, Pros & Cons
+- Trace: 71 spans in coordinator trace file
+- A2A calls captured:
+  - `a2a:Research Coordinator->Searcher Agent` (multiple calls)
+  - `a2a:Research Coordinator->Summarizer Agent`
+- Tool calls captured:
+  - `tool:mcp__research_coordinator__query_agent`
+  - `tool:mcp__research_coordinator__discover_agent`
+- Searcher stats: 11 messages, 3 web search tool calls, 2962 char response
+
+**Conclusion:** Phase 1 semantic tracing correctly captures complex multi-agent workflows including:
+- Cross-agent A2A communication
+- Tool call input/output
+- LLM reasoning steps
+- Error handling
+
+---
 
 **Phase 2: Build Dynamic Agent Registry**
 - Create global registry service with registration/discovery
