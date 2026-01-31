@@ -1,6 +1,6 @@
 ---
 active: true
-iteration: 8
+iteration: 9
 max_iterations: 100
 completion_promise: null
 started_at: "2026-01-31T06:32:48Z"
@@ -85,17 +85,20 @@ started_at: "2026-01-31T06:32:48Z"
   - Complexity Agent: 2 timeouts
 - All errors properly captured with status=error and error_message
 
-### Overall Testing Summary (Iteration 8)
+### Overall Testing Summary (Iteration 9 - Final)
 
 | Metric | Count |
 |--------|-------|
-| Trace files | 12 |
-| Total spans | 315 |
-| LLM spans | 206 |
-| Tool spans | 65 |
-| A2A spans | 10 |
+| Trace files | 15 |
+| Total spans | 342 |
 | Error spans | 6 |
-| Jobs tested | 3 |
+| Jobs tested | 4 |
+
+**Jobs Tested:**
+- research-assistant: 4 files, 121 spans, 2 errors
+- stock-workflow: 4 files, 48 spans
+- code-review-pipeline: 4 files, 146 spans, 4 errors
+- financial-analysis: 3 files, 27 spans
 
 **✅ Working correctly:**
 - User query capture (llm:user spans)
@@ -124,11 +127,14 @@ started_at: "2026-01-31T06:32:48Z"
 2. LLM span durations are 0ms (captured on receive, not inference timing)
 3. llm.content: null on some spans (empty content blocks between tool calls)
 
-Open Questions (from user):
-- Can we detect external MCP calls (stdio/remote)?
-- Can we detect compactions?
-- Can we see multi-turn internal before responding?
-- Full flow: A2A→LLM→tool→fail→retry→success→A2A return 
+Open Questions (from user) - Updated Iteration 8:
+- Can we detect external MCP calls (stdio/remote)? - NOT YET (requires MCP protocol hooks)
+- Can we detect compactions? - NOT YET (internal to Claude SDK)
+- [x] Can we see multi-turn internal before responding? ✅ YES
+  - Traces show: user→assistant planning→tool calls→null responses→assistant continuation→more tools→final response
+  - Null content between tool calls is Claude SDK behavior (empty messages during tool processing)
+- [x] Full flow: A2A→LLM→tool→fail→retry→success→A2A return ✅ YES
+  - Verified with code-review-pipeline: coordinator→security(timeout)→retry→security(success) 
 
 **Phase 2: Build Dynamic Agent Registry**
 - Create global registry service with registration/discovery
