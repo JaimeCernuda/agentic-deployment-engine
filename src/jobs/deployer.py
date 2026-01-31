@@ -893,7 +893,9 @@ class AgentDeployer:
                 else:
                     all_hosts = allowed_hosts
                 global_env["AGENT_ALLOWED_HOSTS"] = ",".join(sorted(all_hosts))
-                logger.info(f"Cross-node allowed hosts: {global_env['AGENT_ALLOWED_HOSTS']}")
+                logger.info(
+                    f"Cross-node allowed hosts: {global_env['AGENT_ALLOWED_HOSTS']}"
+                )
 
             # Deploy stage by stage
             for stage_idx, stage in enumerate(plan.stages):

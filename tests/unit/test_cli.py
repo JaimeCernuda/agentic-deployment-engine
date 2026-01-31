@@ -265,7 +265,9 @@ class TestStopCommand:
 
                     assert result.exit_code == 0
                     # Should have tried to stop the process
-                    mock_registry.update_status.assert_called_with("test-job", "stopped")
+                    mock_registry.update_status.assert_called_with(
+                        "test-job", "stopped"
+                    )
 
 
 class TestLogsCommand:

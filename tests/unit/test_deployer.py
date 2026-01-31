@@ -470,9 +470,7 @@ class TestAgentDeployer:
         deployer = AgentDeployer()
 
         agents = [make_agent("a", 9001), make_agent("b", 9002)]
-        job = make_job(
-            agents, TopologyConfig(type="pipeline", stages=["a", "b"])
-        )
+        job = make_job(agents, TopologyConfig(type="pipeline", stages=["a", "b"]))
         plan = DeploymentPlan(
             stages=[["a"], ["b"]],
             agent_urls={"a": "http://localhost:9001", "b": "http://localhost:9002"},
@@ -502,9 +500,7 @@ class TestAgentDeployer:
         deployer = AgentDeployer()
 
         agents = [make_agent("a", 9001), make_agent("b", 9002)]
-        job = make_job(
-            agents, TopologyConfig(type="pipeline", stages=["a", "b"])
-        )
+        job = make_job(agents, TopologyConfig(type="pipeline", stages=["a", "b"]))
         plan = DeploymentPlan(
             stages=[["a"], ["b"]],
             agent_urls={"a": "http://localhost:9001", "b": "http://localhost:9002"},
@@ -685,9 +681,7 @@ class TestAgentDeployer:
 
         await deployer.stop(deployed_job)
 
-        mock_runner.stop_by_pid.assert_called_with(
-            12345, "test", host="192.168.1.100"
-        )
+        mock_runner.stop_by_pid.assert_called_with(12345, "test", host="192.168.1.100")
 
 
 class TestParallelDeployment:
@@ -704,7 +698,10 @@ class TestParallelDeployment:
         plan = DeploymentPlan(
             stages=[["a", "b"]],
             agent_urls={"a": "http://localhost:9001", "b": "http://localhost:9002"},
-            connections={"a": ["http://localhost:9002"], "b": ["http://localhost:9001"]},
+            connections={
+                "a": ["http://localhost:9002"],
+                "b": ["http://localhost:9001"],
+            },
         )
 
         async def mock_start(agent, *args, **kwargs):
@@ -732,7 +729,10 @@ class TestParallelDeployment:
         plan = DeploymentPlan(
             stages=[["a", "b"]],
             agent_urls={"a": "http://localhost:9001", "b": "http://localhost:9002"},
-            connections={"a": ["http://localhost:9002"], "b": ["http://localhost:9001"]},
+            connections={
+                "a": ["http://localhost:9002"],
+                "b": ["http://localhost:9001"],
+            },
         )
 
         deploy_order = []
@@ -764,7 +764,9 @@ class TestCleanupAgents:
 
         agent_a = make_agent("a", 9001)
         agent_b = make_agent("b", 9002)
-        job = make_job([agent_a, agent_b], TopologyConfig(type="mesh", agents=["a", "b"]))
+        job = make_job(
+            [agent_a, agent_b], TopologyConfig(type="mesh", agents=["a", "b"])
+        )
 
         mock_process_a = MagicMock()
         mock_process_b = MagicMock()
