@@ -882,6 +882,19 @@ class AgentDeployer:
             # Build global environment
             global_env = dict(job.environment) if job.environment else {}
 
+            # Auto-configure AGENT_ALLOWED_HOSTS for cross-node communication
+            # Extract all unique hosts from agent URLs to enable A2A communication
+            allowed_hosts = self._build_allowed_hosts(plan)
+            if allowed_hosts:
+                existing = global_env.get("AGENT_ALLOWED_HOSTS", "")
+                if existing:
+                    # Merge with any user-provided hosts
+                    all_hosts = set(existing.split(",")) | allowed_hosts
+                else:
+                    all_hosts = allowed_hosts
+                global_env["AGENT_ALLOWED_HOSTS"] = ",".join(sorted(all_hosts))
+                logger.info(f"Cross-node allowed hosts: {global_env['AGENT_ALLOWED_HOSTS']}")
+
             # Deploy stage by stage
             for stage_idx, stage in enumerate(plan.stages):
                 if not stage:
@@ -943,6 +956,32 @@ class AgentDeployer:
             logger.info("Cleaning up deployed agents...")
             await self._cleanup_agents(job, processes)
             raise
+
+    def _build_allowed_hosts(self, plan: DeploymentPlan) -> set[str]:
+        """Extract unique hosts from agent URLs for SSRF allowlist.
+
+        This enables cross-node A2A communication by automatically adding
+        all agent hosts to the AGENT_ALLOWED_HOSTS environment variable.
+
+        Args:
+            plan: Deployment plan with agent URLs
+
+        Returns:
+            Set of unique hostnames/IPs from agent URLs
+        """
+        from urllib.parse import urlparse
+
+        allowed = {"localhost", "127.0.0.1"}  # Always include localhost
+
+        for url in plan.agent_urls.values():
+            try:
+                parsed = urlparse(url)
+                if parsed.hostname:
+                    allowed.add(parsed.hostname)
+            except Exception:
+                pass
+
+        return allowed
 
     async def _deploy_agent(
         self,

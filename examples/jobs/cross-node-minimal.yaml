@@ -1,0 +1,45 @@
+# Minimal Cross-Node Test
+# Just one remote worker and one local controller
+
+job:
+  name: cross-node-minimal
+  version: 1.0.0
+  description: Minimal cross-node test
+
+agents:
+  # Weather on homelab
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+      name: Weather (Remote)
+    deployment:
+      target: remote
+      host: homelab
+      workdir: ~/agent-deploy/weather
+      python: python3
+
+  # Controller LOCAL
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      name: Controller (Local)
+    deployment:
+      target: localhost
+
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+
+deployment:
+  strategy: sequential
+  timeout: 120
+  health_check:
+    enabled: true
+    interval: 10
+    retries: 12

@@ -1,0 +1,77 @@
+# Cross-Node A2A Communication Test
+# Pattern: Hub-and-Spoke with controller LOCAL, workers on HOMELAB
+# Use case: Test if agents on different machines can communicate via A2A protocol
+
+job:
+  name: cross-node-test
+  version: 1.0.0
+  description: Cross-node deployment - local controller, remote workers
+  tags:
+    - cross-node
+    - ssh
+    - a2a-test
+
+agents:
+  # Weather service on homelab (remote)
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent (Remote)
+    deployment:
+      target: remote
+      host: homelab
+      workdir: ~/agent-deploy/weather
+      python: python3
+
+  # Maps service on homelab (remote)
+  - id: maps
+    type: MapsAgent
+    module: examples.agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent (Remote)
+    deployment:
+      target: remote
+      host: homelab
+      workdir: ~/agent-deploy/maps
+      python: python3
+
+  # Controller stays LOCAL
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent (Local)
+    deployment:
+      target: localhost
+
+# Hub-and-spoke topology
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 60
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 5
+
+  ssh:
+    timeout: 30
+
+execution:
+  entry_point: controller
+  auto_start: true
+
+environment:
+  DEPLOYMENT_ENV: testing
+  LOG_LEVEL: DEBUG
