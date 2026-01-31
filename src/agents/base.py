@@ -322,6 +322,14 @@ class BaseA2AAgent(ABC):
                 session_id=session.session_id,
                 history_length=len(session.messages),
             ) as sem_span:
+                # Capture the user query as an LLM message span
+                with semantic_tracer.llm_message(
+                    role="user",
+                    content=body.query,
+                    model="user-input",
+                ):
+                    pass  # Span captures the user's incoming query
+
                 # Create child span for this query with session tracking
                 with traced_operation(
                     "handle_query",
