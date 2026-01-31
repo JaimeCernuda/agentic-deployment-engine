@@ -763,12 +763,33 @@ P10: Documentation updated - major CLI gaps fixed, some advanced topics still un
 - `d2e8480` - fix: wire up alternative backends (#19)
 - `7c64d40` - feat: integrate health monitoring into CLI (#13)
 - `3cab966` - docs: update exploration notes
-- `{NEW}` - docs: update CLI documentation for P10
+- `0a16347` - docs: add comprehensive CLI command reference (P10)
 
-## Remaining Work
-1. Implement auto-restart callback in HealthMonitor
-2. Document alternative backends
-3. Fix CrewAI version compatibility
-4. Add OTEL trace IDs to logs
-5. Fix #11 (status column inconsistency)
-6. Fix #14 (permission preset MCP tool filtering)
+## GitHub Issues Closed This Session
+- #10: CLI logs command wrong directory → Already fixed
+- #11: Status column confusion → Already fixed (only Health column now)
+- #12: No multi-turn context → Fixed with SessionManager
+- #13: No auto-recovery → HealthMonitor integrated
+- #15: Add cleanup command → Implemented
+- #16: SSH multiple uv paths → Fixed
+- #18: Cross-node ALLOWED_HOSTS → Fixed
+- #19: Alternative backends unused → Fixed
+
+## Remaining Open Issues
+- #3: Configurable client pool size (enhancement)
+- #4: Parallel tool calls (enhancement)
+- #5: Process tree tracking (enhancement)
+- #7: Cancel scope error during cleanup (bug)
+- #8: LiteLLM logging errors with CrewAI (bug)
+- #9: Gemini CLI hangs on Windows (bug)
+- #14: Permission presets filter MCP tools (bug)
+- #17: SSH host alias resolution (bug)
+
+## Key Accomplishments
+1. **Multi-turn context** - SessionManager with --session flag works
+2. **Health monitoring** - HealthMonitor integrated into CLI start
+3. **Alternative backends** - Backend dispatch now works
+4. **Cross-node A2A** - ALLOWED_HOSTS auto-configured
+5. **Documentation** - Full CLI reference added
+6. **SSH deployment** - 4 critical bugs fixed
+7. **Cleanup command** - Fully implemented with options
