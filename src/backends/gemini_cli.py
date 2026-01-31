@@ -2,6 +2,11 @@
 
 Uses Google's Gemini CLI as an agentic framework.
 Gemini CLI supports MCP servers, tool use, and agentic workflows.
+
+Note: Since Gemini CLI is invoked as a subprocess, we cannot use in-process
+hooks like the Claude SDK. Instead, we use the `-o json` output format to
+extract tool call information from the structured response, providing
+visibility into internal tool execution from the CLI output.
 """
 
 import asyncio
@@ -13,6 +18,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from ..core.exceptions import AgentBackendError, ConfigurationError
+from ..observability.semantic import get_semantic_tracer
 from .base import AgentBackend, BackendConfig, QueryResult
 
 logger = logging.getLogger(__name__)
@@ -118,6 +124,9 @@ class GeminiCLIBackend(AgentBackend):
         """
         await self.initialize()
 
+        tracer = get_semantic_tracer()
+        model_name = self.model or "gemini-default"
+
         # Build command
         cmd = [self._gemini_path, "-p", prompt, "-o", "json"]
 
@@ -136,6 +145,18 @@ class GeminiCLIBackend(AgentBackend):
             cmd[cmd.index("-p") + 1] = full_prompt
 
         logger.debug(f"Executing Gemini CLI: {' '.join(cmd[:3])}...")
+
+        # Trace the user query
+        with tracer.llm_message(
+            role="user",
+            content=prompt,
+            model=model_name,
+        ) as user_span:
+            tracer.add_event(
+                user_span,
+                "gemini_cli_invoked",
+                {"yolo_mode": self.yolo_mode},
+            )
 
         try:
             # On Windows, .cmd files need shell execution
@@ -168,14 +189,39 @@ class GeminiCLIBackend(AgentBackend):
 
             # Parse JSON output
             output = stdout.decode()
+            tool_calls = []
             try:
                 result_data = json.loads(output)
                 response = result_data.get("response", output)
-                tool_count = len(result_data.get("tool_calls", []))
+                tool_calls = result_data.get("tool_calls", [])
+                tool_count = len(tool_calls)
             except json.JSONDecodeError:
                 # Fall back to raw output
                 response = output
                 tool_count = 0
+
+            # Trace each tool call
+            for tool_call in tool_calls:
+                tool_name = tool_call.get("name", "unknown")
+                tool_input = tool_call.get("input", {})
+                with tracer.tool_call(tool_name, tool_input) as tool_span:
+                    tracer.add_event(
+                        tool_span,
+                        "gemini_tool_executed",
+                        {"result": str(tool_call.get("result", ""))[:200]},
+                    )
+
+            # Trace the response
+            with tracer.llm_message(
+                role="assistant",
+                content=response,
+                model=model_name,
+            ) as response_span:
+                tracer.add_event(
+                    response_span,
+                    "gemini_cli_completed",
+                    {"tool_count": tool_count, "response_length": len(response)},
+                )
 
             return QueryResult(
                 response=response,
