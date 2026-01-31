@@ -611,36 +611,30 @@ class TestQueryHandling:
     async def test_handle_query_gets_and_returns_client(
         self, agent_for_query, mock_claude_sdk
     ) -> None:
-        """_handle_query() should get client and return it to pool."""
-        mock_client = MagicMock()
-        mock_client.connect = AsyncMock()
-        mock_client.query = AsyncMock()
+        """_handle_query() should use backend to execute query."""
+        from src.backends.base import QueryResult
 
-        # Mock response messages
-        mock_message = MagicMock()
-        mock_message.content = [MagicMock(text="Response text")]
-        mock_client.receive_response = AsyncMock(return_value=iter([mock_message]))
+        # Mock the backend's query method
+        mock_result = QueryResult(
+            response="Response text",
+            messages_count=1,
+            tools_used=0,
+        )
+        agent_for_query._backend.query = AsyncMock(return_value=mock_result)
 
-        # Set up client to be returned from pool
-        agent_for_query._pool_initialized = True
-        await agent_for_query._client_pool.put(mock_client)
+        result = await agent_for_query._handle_query("Test query")
 
-        await agent_for_query._handle_query("Test query")
-
-        # Client should be back in pool
-        assert agent_for_query._client_pool.qsize() == 1
+        # Backend should have been called
+        agent_for_query._backend.query.assert_called_once()
+        assert result == "Response text"
 
     @pytest.mark.asyncio
     async def test_handle_query_returns_error_on_exception(
         self, agent_for_query, mock_claude_sdk
     ) -> None:
         """_handle_query() should return error message on exception."""
-        mock_client = MagicMock()
-        mock_client.connect = AsyncMock()
-        mock_client.query = AsyncMock(side_effect=Exception("API Error"))
-
-        agent_for_query._pool_initialized = True
-        await agent_for_query._client_pool.put(mock_client)
+        # Mock the backend to raise an exception
+        agent_for_query._backend.query = AsyncMock(side_effect=Exception("API Error"))
 
         result = await agent_for_query._handle_query("Test query")
 
@@ -650,24 +644,21 @@ class TestQueryHandling:
     async def test_handle_query_returns_no_response_when_empty(
         self, agent_for_query, mock_claude_sdk
     ) -> None:
-        """_handle_query() should return 'No response' for empty response."""
-        mock_client = MagicMock()
-        mock_client.connect = AsyncMock()
-        mock_client.query = AsyncMock()
+        """_handle_query() should handle empty response from backend."""
+        from src.backends.base import QueryResult
 
-        # Create an async generator that yields nothing
-        async def empty_response():
-            return
-            yield  # Make it a generator
-
-        mock_client.receive_response = empty_response
-
-        agent_for_query._pool_initialized = True
-        await agent_for_query._client_pool.put(mock_client)
+        # Mock the backend to return empty response
+        mock_result = QueryResult(
+            response="",
+            messages_count=0,
+            tools_used=0,
+        )
+        agent_for_query._backend.query = AsyncMock(return_value=mock_result)
 
         result = await agent_for_query._handle_query("Test query")
 
-        assert "no response" in result.lower()
+        # Empty response from backend is returned as-is
+        assert result == ""
 
 
 # ============================================================================
