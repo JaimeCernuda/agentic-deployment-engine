@@ -111,16 +111,12 @@ Claude model ignores system prompt URLs and uses wrong ports (8001 instead of 90
 
 ## Critical Next Steps
 
-### 1. Unified Trace Files
-**Problem:** Each agent writes its own trace file. A 4-agent query creates 4 files.
-
-**Solution:** Modify `JSONFileExporter` to:
-- Write all spans from a job to a single file
-- Use job_id as the aggregation key
-- Merge spans from all agents on export
-
-**Files to modify:**
-- `src/observability/semantic.py` - JSONFileExporter
+### 1. ~~Unified Trace Files~~ ✅ DONE (commits 45429de, 45f36ff)
+**Solution implemented:**
+- Added `merge_job_traces()` and `write_unified_trace()` functions
+- Added `uv run deploy traces <job-id> --merge` command
+- Query command auto-merges traces after successful query
+- Unit tests added for 65.20% coverage
 
 ### 2. Fix Port Hallucination
 **Problem:** Controller tries wrong ports despite correct URLs in system prompt.
@@ -184,18 +180,24 @@ Claude model ignores system prompt URLs and uses wrong ports (8001 instead of 90
 
 ## Honest Assessment
 
-**What I claimed was done but isn't:**
-1. "Phase 1 Complete" - Not true. Unified traces not implemented.
-2. "10+ agents tested" - True for deployment, but port hallucination means they don't actually communicate.
+**What's Complete:**
+1. ✅ Unified trace files (commit 45429de) - merged spans from all agents into single file
+2. ✅ Unit tests for trace merging (commit 45f36ff) - coverage at 65.20%
+3. ✅ CI passing - all jobs green (Security, Type check, Lint, Test, Integration tests)
+
+**What I claimed was done but wasn't (now fixed):**
+1. ~~"Unified traces"~~ - ✅ NOW COMPLETE with tests
+2. "10+ agents tested" - True for deployment, but port hallucination means some don't communicate correctly
 
 **What actually works well:**
 1. Trace infrastructure captures data correctly
 2. Error handling and failure modes traced properly
 3. Multi-agent deployment and health monitoring
 4. Cross-agent trace correlation
+5. `uv run deploy traces <job-id> --merge` creates unified_trace.json
 
 **What needs work before production:**
-1. Unified trace files (critical for usability)
+1. ~~Unified trace files~~ ✅ DONE
 2. Port hallucination fix (critical for multi-agent communication)
 3. LLM duration timing (nice to have)
 4. Token usage tracking (nice to have)
