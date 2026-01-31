@@ -56,6 +56,10 @@ started_at: "2026-01-31T06:32:48Z"
 - [x] Tool calls show input AND output ✅ (full input/result in attributes)
 - [x] A2A shows source→target with actual names ✅ (e.g., "Research Coordinator->Searcher Agent")
 - [ ] Duration timing is meaningful (not 0ms) ❌ (LLM: 0ms, tools: accurate)
+  - LLM 0ms is CORRECT - we time message processing, not inference
+  - Inference happens inside client.query() before we receive messages
+  - Tool durations ARE accurate (timed around actual execution)
+  - To capture inference time: would need to wrap entire query() call
 - [x] Error traces have proper status and message ✅ (timeout, connection failed, SSRF)
 - [x] Parent-child span relationships correct ✅ (verified cross-agent correlation)
 
