@@ -1,0 +1,77 @@
+# Mixed Provider Workflow
+# Tests using different LLM backends in the same workflow
+# Weather uses Claude SDK, Maps uses CrewAI+Ollama
+
+job:
+  name: mixed-providers-workflow
+  version: 1.0.0
+  description: Mixed backend workflow - Claude + Ollama in same deployment
+  tags:
+    - mixed
+    - claude
+    - ollama
+    - experimental
+
+agents:
+  # Weather agent using Claude SDK (default)
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent (Claude)
+    deployment:
+      target: localhost
+      environment:
+        AGENT_BACKEND_TYPE: claude
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Maps agent using CrewAI + Ollama
+  - id: maps
+    type: MapsAgent
+    module: examples.agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent (Ollama)
+    deployment:
+      target: localhost
+      environment:
+        AGENT_BACKEND_TYPE: crewai
+        AGENT_OLLAMA_MODEL: llama3.2:latest
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Controller using Claude SDK
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+execution:
+  entry_point: controller
+  auto_start: true

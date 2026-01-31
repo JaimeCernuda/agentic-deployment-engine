@@ -1,0 +1,96 @@
+# Code Review Pipeline
+#
+# A multi-agent code review system that analyzes code for:
+# - Linting issues (style, formatting)
+# - Security vulnerabilities
+# - Complexity metrics
+#
+# Usage:
+#   uv run deploy start examples/jobs/code-review-pipeline.yaml
+#   uv run deploy query <job-id> "Review the codebase"
+
+job:
+  name: code-review-pipeline
+  version: 1.0.0
+  description: Multi-agent code review with linting, security, and complexity analysis
+  tags:
+    - review
+    - linting
+    - security
+    - complexity
+
+agents:
+  # Linter agent
+  - id: linter
+    type: LinterAgent
+    module: examples.agents.linter_agent
+    config:
+      port: 9011
+      name: Linter Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Security agent
+  - id: security
+    type: SecurityAgent
+    module: examples.agents.security_agent
+    config:
+      port: 9012
+      name: Security Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Complexity agent
+  - id: complexity
+    type: ComplexityAgent
+    module: examples.agents.complexity_agent
+    config:
+      port: 9013
+      name: Complexity Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Coordinator agent
+  - id: coordinator
+    type: ReviewCoordinatorAgent
+    module: examples.agents.review_coordinator_agent
+    config:
+      port: 9010
+      name: Review Coordinator
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+# Hub-and-spoke topology (coordinator connects to all review agents)
+topology:
+  type: hub-spoke
+  hub: coordinator
+  spokes:
+    - linter
+    - security
+    - complexity
+
+# Deployment configuration
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+# Workflow execution
+execution:
+  entry_point: coordinator
+  auto_start: true

@@ -50,6 +50,12 @@ maps-agent = "examples.agents.maps_agent:main"
 controller-agent = "examples.agents.controller_agent:main"
 stock-agent = "examples.agents.stock_agent:main"
 calculator-agent = "examples.agents.calculator_agent:main"
+restricted-agent = "examples.agents.restricted_agent:main"
+# Code review pipeline agents
+linter-agent = "examples.agents.linter_agent:main"
+security-agent = "examples.agents.security_agent:main"
+complexity-agent = "examples.agents.complexity_agent:main"
+review-coordinator = "examples.agents.review_coordinator_agent:main"
 # Start all agents
 start-all = "src.start_all:main"
 # Job deployment CLI

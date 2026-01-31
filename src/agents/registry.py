@@ -287,16 +287,14 @@ class AgentRegistry:
             return base_prompt
 
         # Build prompt with agent information
-        prompt = base_prompt + "\n\n**Available Agents:**\n\n"
-        prompt += "You can query these agents using the mcp__a2a_transport__query_agent tool:\n\n"
+        prompt = base_prompt + "\n\n**Available Agents (DISCOVERED AND VERIFIED):**\n\n"
+        prompt += "These agents are running and accessible. Use your query_agent tool to communicate:\n\n"
 
         for agent in agents_to_include:
             prompt += agent.to_prompt_section() + "\n"
 
-        prompt += "\n**Usage:**\n"
-        prompt += "Use mcp__a2a_transport__query_agent with:\n"
-        prompt += '- agent_url: The agent\'s URL (e.g., "http://localhost:9001")\n'
-        prompt += "- query: Your question for the agent\n"
+        prompt += "\n**CRITICAL: Use these exact URLs from above - they are verified working.**\n"
+        prompt += "Do NOT guess or try other ports. Use the URLs listed above.\n"
 
         return prompt
 

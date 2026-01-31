@@ -6,6 +6,7 @@ Based on evaluation_a2a_transport SDK implementation.
 """
 
 import ipaddress
+import logging
 from typing import Any
 from urllib.parse import urlparse
 
@@ -15,6 +16,8 @@ from claude_agent_sdk import create_sdk_mcp_server, tool
 from ..config import settings
 from ..observability.semantic import get_semantic_tracer
 from ..observability.telemetry import inject_context, traced_operation
+
+logger = logging.getLogger(__name__)
 
 
 def is_safe_url(url: str) -> bool:
