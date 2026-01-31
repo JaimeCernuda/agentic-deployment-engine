@@ -16,6 +16,7 @@ from claude_agent_sdk import create_sdk_mcp_server, tool
 from ..config import settings
 from ..observability.semantic import get_current_agent_name, get_semantic_tracer
 from ..observability.telemetry import inject_context, traced_operation
+from .registry import get_agent_name_by_url
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +122,9 @@ async def query_agent(args: dict[str, Any]) -> dict[str, Any]:
 
     # Get source agent from context (set by query_handling)
     source_agent = get_current_agent_name() or "unknown"
-    target_agent = urlparse(agent_url).netloc
+
+    # Resolve target agent name from URL (falls back to hostname:port if not found)
+    target_agent = get_agent_name_by_url(agent_url) or urlparse(agent_url).netloc
 
     with semantic_tracer.a2a_message(
         source_agent=source_agent,

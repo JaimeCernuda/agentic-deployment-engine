@@ -17,6 +17,51 @@ logger = logging.getLogger(__name__)
 # Cache entry type: (AgentInfo, timestamp)
 CacheEntry = tuple["AgentInfo", float]
 
+# Global URL-to-name cache for A2A tracing
+# Populated during agent discovery, used by transport to resolve target agent names
+_url_to_name_cache: dict[str, str] = {}
+
+
+def get_agent_name_by_url(url: str) -> str | None:
+    """Get agent name by URL from global cache.
+
+    Args:
+        url: Agent URL (e.g., "http://localhost:9021")
+
+    Returns:
+        Agent name if found, None otherwise.
+    """
+    # Try exact match
+    if url in _url_to_name_cache:
+        return _url_to_name_cache[url]
+
+    # Try without trailing slash
+    url_clean = url.rstrip("/")
+    if url_clean in _url_to_name_cache:
+        return _url_to_name_cache[url_clean]
+
+    # Try extracting host:port for partial match
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    host_port = f"{parsed.scheme}://{parsed.netloc}"
+    if host_port in _url_to_name_cache:
+        return _url_to_name_cache[host_port]
+
+    return None
+
+
+def register_agent_url_name(url: str, name: str) -> None:
+    """Register agent URL-to-name mapping in global cache.
+
+    Args:
+        url: Agent URL
+        name: Agent name
+    """
+    url_clean = url.rstrip("/")
+    _url_to_name_cache[url_clean] = name
+    logger.debug(f"Registered agent name mapping: {url_clean} -> {name}")
+
 
 def sanitize_prompt_text(text: str, max_length: int = 200) -> str:
     """Sanitize text for safe inclusion in system prompts.
@@ -216,6 +261,10 @@ class AgentRegistry:
             self._cache[url] = (agent_info, time.monotonic())
 
             logger.info(f"Discovered agent: {agent_info.name} at {url}")
+
+            # Register URL-to-name mapping for A2A tracing
+            register_agent_url_name(url, agent_info.name)
+
             return agent_info
 
         except Exception as e:
