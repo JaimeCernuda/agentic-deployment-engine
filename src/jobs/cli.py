@@ -13,6 +13,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from ..observability.semantic import write_unified_trace
 from .deployer import AgentDeployer, DeploymentError
 from .loader import JobLoader, JobLoadError
 from .registry import AgentState, JobState, get_registry
@@ -570,6 +571,18 @@ def query(
                 title += f" [dim](session: {session_id})[/dim]"
             console.print(Panel(response_text, title=title, expand=False))
 
+        # Merge traces after query completes
+        try:
+            from ..config import settings
+
+            trace_dir = Path(settings.semantic_trace_dir) / job_state.job_id
+            if trace_dir.exists():
+                unified_path = write_unified_trace(trace_dir)
+                if unified_path and not raw:
+                    console.print(f"[dim]Traces merged: {unified_path.name}[/dim]")
+        except Exception:
+            pass  # Don't fail query if trace merge fails
+
     except httpx.TimeoutException:
         console.print(f"[red][FAIL] Request timed out after {timeout}s[/red]")
         raise typer.Exit(code=1) from None
@@ -863,6 +876,124 @@ def cleanup(
         + (f" and {deleted_logs} log directories" if include_logs else "")
         + "[/green]"
     )
+
+
+# ============================================================================
+# Traces Command
+# ============================================================================
+
+
+@app.command()
+def traces(
+    job_id: str | None = typer.Argument(
+        None, help="Job ID to view traces for (optional)"
+    ),
+    merge: bool = typer.Option(
+        False, "--merge", "-m", help="Merge all trace files into unified trace"
+    ),
+    show: bool = typer.Option(
+        False, "--show", "-s", help="Show trace summary (span count, agents, etc.)"
+    ),
+):
+    """View and merge job traces.
+
+    Examples:
+        uv run deploy traces                          # List all trace directories
+        uv run deploy traces my-job-id --show         # Show trace summary
+        uv run deploy traces my-job-id --merge        # Create unified trace file
+    """
+    from ..config import settings
+    from ..observability.semantic import merge_job_traces
+
+    traces_dir = Path(settings.semantic_trace_dir)
+
+    if not traces_dir.exists():
+        console.print(f"[dim]No traces directory found at {traces_dir}[/dim]")
+        return
+
+    if job_id:
+        # Handle specific job
+        job_trace_dir = traces_dir / job_id
+        if not job_trace_dir.exists():
+            # Try to find job by prefix
+            matches = list(traces_dir.glob(f"{job_id}*"))
+            if len(matches) == 1:
+                job_trace_dir = matches[0]
+            elif len(matches) > 1:
+                console.print(f"[yellow]Multiple matches for '{job_id}':[/yellow]")
+                for match in matches:
+                    console.print(f"  {match.name}")
+                return
+            else:
+                console.print(f"[red]No traces found for job: {job_id}[/red]")
+                return
+
+        trace_files = list(job_trace_dir.glob("trace_*.json"))
+        unified_file = job_trace_dir / "unified_trace.json"
+
+        if show or not merge:
+            # Show trace summary
+            if unified_file.exists():
+                with open(unified_file) as f:
+                    unified = json.load(f)
+                console.print(f"\n[bold]Unified Trace: {job_trace_dir.name}[/bold]")
+                console.print(f"  Spans: {unified.get('span_count', 0)}")
+                console.print(f"  Agents: {', '.join(unified.get('agents', []))}")
+                console.print(f"  Source files: {unified.get('source_files', 0)}")
+                console.print(f"  File: {unified_file}")
+            else:
+                # Show individual files
+                console.print(f"\n[bold]Traces: {job_trace_dir.name}[/bold]")
+                console.print(f"  Files: {len(trace_files)}")
+                for tf in trace_files:
+                    console.print(f"    - {tf.name}")
+                if trace_files:
+                    console.print(
+                        "\n[dim]Run with --merge to create unified trace[/dim]"
+                    )
+
+        if merge:
+            # Merge traces
+            unified_path = write_unified_trace(job_trace_dir)
+            if unified_path:
+                console.print(
+                    f"[green][OK] Unified trace created: {unified_path}[/green]"
+                )
+
+                # Show summary
+                unified = merge_job_traces(job_trace_dir)
+                if unified:
+                    console.print(f"  Spans: {unified.get('span_count', 0)}")
+                    console.print(f"  Agents: {', '.join(unified.get('agents', []))}")
+            else:
+                console.print("[red]Failed to merge traces[/red]")
+
+    else:
+        # List all trace directories
+        trace_dirs = [d for d in traces_dir.iterdir() if d.is_dir()]
+
+        if not trace_dirs:
+            console.print("[dim]No trace directories found[/dim]")
+            return
+
+        table = Table(title="Job Traces")
+        table.add_column("Job ID", style="cyan")
+        table.add_column("Files", justify="right")
+        table.add_column("Unified", justify="center")
+
+        for trace_dir in sorted(trace_dirs, key=lambda d: d.name, reverse=True):
+            trace_files = list(trace_dir.glob("trace_*.json"))
+            unified = (trace_dir / "unified_trace.json").exists()
+            table.add_row(
+                trace_dir.name,
+                str(len(trace_files)),
+                "[green]✓[/green]" if unified else "[dim]-[/dim]",
+            )
+
+        console.print(table)
+        console.print(
+            "\n[dim]Use 'uv run deploy traces <job-id> --show' to view details[/dim]"
+        )
 
 
 # ============================================================================

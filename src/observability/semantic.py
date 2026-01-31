@@ -759,3 +759,90 @@ def get_current_agent_name() -> str | None:
         Agent name if set, None otherwise.
     """
     return _current_agent_name.get()
+
+
+def merge_job_traces(job_trace_dir: Path | str) -> dict[str, Any] | None:
+    """Merge all trace files from a job into a single unified trace.
+
+    Each agent in a job writes its own trace file. This function combines
+    them into a single trace for easier analysis.
+
+    Args:
+        job_trace_dir: Directory containing trace files for a job.
+                       Typically traces/{job-id}/
+
+    Returns:
+        Unified trace dict with all spans merged, or None if no traces found.
+    """
+    trace_dir = Path(job_trace_dir)
+    if not trace_dir.exists():
+        return None
+
+    # Find all trace JSON files
+    trace_files = list(trace_dir.glob("trace_*.json"))
+    if not trace_files:
+        return None
+
+    all_spans: list[dict[str, Any]] = []
+    trace_ids: set[str] = set()
+    agent_names: set[str] = set()
+
+    for trace_file in trace_files:
+        try:
+            with open(trace_file) as f:
+                trace_data = json.load(f)
+
+            spans = trace_data.get("spans", [])
+            for span in spans:
+                all_spans.append(span)
+                trace_ids.add(span.get("trace_id", "unknown"))
+                agent_name = span.get("attributes", {}).get("agent.name")
+                if agent_name:
+                    agent_names.add(agent_name)
+
+        except (json.JSONDecodeError, OSError) as e:
+            logger.warning(f"Failed to read trace file {trace_file}: {e}")
+
+    if not all_spans:
+        return None
+
+    # Sort spans by start_time for chronological order
+    all_spans.sort(key=lambda s: s.get("start_time", ""))
+
+    return {
+        "job_dir": str(trace_dir),
+        "export_time": datetime.now(UTC).isoformat(),
+        "source_files": len(trace_files),
+        "span_count": len(all_spans),
+        "trace_ids": list(trace_ids),
+        "agents": list(agent_names),
+        "spans": all_spans,
+    }
+
+
+def write_unified_trace(job_trace_dir: Path | str) -> Path | None:
+    """Merge job traces and write to a unified trace file.
+
+    Args:
+        job_trace_dir: Directory containing trace files for a job.
+
+    Returns:
+        Path to unified trace file, or None if no traces found.
+    """
+    trace_dir = Path(job_trace_dir)
+    unified = merge_job_traces(trace_dir)
+
+    if not unified:
+        return None
+
+    # Write unified trace
+    output_file = trace_dir / "unified_trace.json"
+    with open(output_file, "w") as f:
+        json.dump(unified, f, indent=2, default=str)
+
+    logger.info(
+        f"Unified trace written: {output_file} "
+        f"({unified['span_count']} spans from {unified['source_files']} files)"
+    )
+
+    return output_file
