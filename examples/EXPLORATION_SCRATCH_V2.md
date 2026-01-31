@@ -775,15 +775,17 @@ P10: Documentation updated - major CLI gaps fixed, some advanced topics still un
 - #18: Cross-node ALLOWED_HOSTS → Fixed
 - #19: Alternative backends unused → Fixed
 
-## Remaining Open Issues (4 total)
+## Remaining Open Issues (3 enhancements only)
 - #3: Configurable client pool size (enhancement)
 - #4: Parallel tool calls (enhancement)
 - #5: Process tree tracking (enhancement)
-- #9: Gemini CLI hangs on Windows (bug)
 
-## Additional Issues Closed
+## ALL BUGS FIXED
 - #7: Cancel scope error during cleanup → Fixed in aebce6e
 - #8: LiteLLM logging errors → Fixed in 5a61a96
+- #9: Gemini CLI Windows hang → Fixed in 6cd280d (stdin=DEVNULL)
+- #10: CLI logs wrong directory → Already fixed
+- #11: Status column inconsistency → Already fixed
 - #14: Permission presets filter MCP tools → Already fixed in 6f53ef2
 - #17: SSH host alias resolution → Already fixed in 6f53ef2
 
