@@ -22,7 +22,6 @@ from pydantic import BaseModel
 from ..backends import AgentBackend, BackendConfig
 from ..config import settings
 from ..observability import (
-    add_span_attribute,
     extract_context,
     instrument_fastapi,
     setup_telemetry,

@@ -256,17 +256,11 @@ def start(
                 from .monitor import AgentHealthStatus
 
                 if status == AgentHealthStatus.UNREACHABLE:
-                    console.print(
-                        f"[yellow]⚠ Agent {agent_id} is unreachable[/yellow]"
-                    )
+                    console.print(f"[yellow]⚠ Agent {agent_id} is unreachable[/yellow]")
                 elif status == AgentHealthStatus.RESTARTING:
-                    console.print(
-                        f"[cyan]↻ Restarting agent {agent_id}...[/cyan]"
-                    )
+                    console.print(f"[cyan]↻ Restarting agent {agent_id}...[/cyan]")
                 elif status == AgentHealthStatus.HEALTHY:
-                    console.print(
-                        f"[green]✓ Agent {agent_id} is healthy[/green]"
-                    )
+                    console.print(f"[green]✓ Agent {agent_id} is healthy[/green]")
                 elif status == AgentHealthStatus.FAILED:
                     console.print(
                         f"[red]✗ Agent {agent_id} failed (max restarts exceeded)[/red]"
@@ -382,6 +376,7 @@ def status(
     unhealthy_count = sum(
         1 for _, (_, status) in health_results.items() if status != "healthy"
     )
+    total_count = len(health_results)
 
     for agent_id, agent in job_state.agents.items():
         health_display, _ = health_results.get(agent_id, ("unknown", "unknown"))
@@ -394,6 +389,15 @@ def status(
         )
 
     console.print(table)
+
+    # Display health summary
+    if unhealthy_count == 0:
+        console.print(f"\n[green]All {total_count} agents healthy[/green]")
+    else:
+        console.print(
+            f"\n[yellow]Health: {total_count - unhealthy_count}/{total_count} agents healthy, "
+            f"{unhealthy_count} unhealthy[/yellow]"
+        )
 
 
 # ============================================================================
@@ -828,7 +832,9 @@ def cleanup(
     console.print(table)
 
     if include_logs and log_dirs_to_delete:
-        console.print(f"\n[bold]{action} {len(log_dirs_to_delete)} log directories[/bold]")
+        console.print(
+            f"\n[bold]{action} {len(log_dirs_to_delete)} log directories[/bold]"
+        )
 
     if dry_run:
         console.print("\n[yellow]Dry run - no changes made[/yellow]")
@@ -848,7 +854,9 @@ def cleanup(
                 shutil.rmtree(log_dir)
                 deleted_logs += 1
             except Exception as e:
-                console.print(f"[yellow]Warning: Could not delete {log_dir}: {e}[/yellow]")
+                console.print(
+                    f"[yellow]Warning: Could not delete {log_dir}: {e}[/yellow]"
+                )
 
     console.print(
         f"\n[green][OK] Cleaned up {deleted_jobs} jobs"

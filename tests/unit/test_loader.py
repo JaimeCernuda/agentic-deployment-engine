@@ -17,7 +17,7 @@ from unittest.mock import patch
 import pytest
 import yaml
 
-from src.jobs.loader import JobLoadError, JobLoader
+from src.jobs.loader import JobLoader, JobLoadError
 
 
 def write_yaml(path: Path, data: dict) -> None:
@@ -54,7 +54,8 @@ def make_minimal_job(
             "description": "Test job",
         },
         "agents": agents or default_agents,
-        "topology": topology or {"type": "mesh", "agents": ["test-agent", "test-agent-2"]},
+        "topology": topology
+        or {"type": "mesh", "agents": ["test-agent", "test-agent-2"]},
     }
 
 

@@ -7,9 +7,10 @@ capabilities for agent processes that fail or become unresponsive.
 import asyncio
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -251,7 +252,7 @@ class HealthMonitor:
 
         # Calculate backoff delay
         backoff = min(
-            self.config.restart_backoff_base ** health.restart_count,
+            self.config.restart_backoff_base**health.restart_count,
             self.config.restart_backoff_max,
         )
 
