@@ -311,6 +311,11 @@ class BaseA2AAgent(ABC):
 
             # Semantic tracing - agent level query handling
             semantic_tracer = get_semantic_tracer()
+
+            # Continue parent trace if propagated via A2A headers
+            parent_trace_id = http_request.headers.get("x-semantic-trace-id")
+            if parent_trace_id:
+                semantic_tracer.continue_trace(parent_trace_id)
             with semantic_tracer.query_handling(
                 agent_name=self.name,
                 query=body.query,

@@ -183,19 +183,40 @@ class SemanticTracer:
             except ImportError:
                 pass
 
-    def start_trace(self, name: str) -> str:
-        """Start a new trace.
+    def start_trace(self, name: str, parent_trace_id: str | None = None) -> str:
+        """Start a new trace or continue an existing one.
 
         Args:
             name: Human-readable trace name.
+            parent_trace_id: Optional parent trace ID for cross-agent correlation.
+                             If provided, this trace will be linked to the parent.
 
         Returns:
             Trace ID.
         """
-        self._trace_id = str(uuid.uuid4())
+        # Use parent trace_id if provided (for cross-agent correlation)
+        self._trace_id = parent_trace_id or str(uuid.uuid4())
         if self.exporter:
             self.exporter.start_trace(self._trace_id, name)
         return self._trace_id
+
+    def get_trace_id(self) -> str | None:
+        """Get the current trace ID.
+
+        Returns:
+            Current trace ID or None if no trace is active.
+        """
+        return self._trace_id
+
+    def continue_trace(self, trace_id: str) -> None:
+        """Continue an existing trace from another agent.
+
+        Use this to correlate traces across A2A calls.
+
+        Args:
+            trace_id: The parent trace ID to continue.
+        """
+        self._trace_id = trace_id
 
     def _create_span(
         self,
@@ -504,19 +525,21 @@ class SemanticTracer:
         # Set agent context for child spans (SDK hooks, A2A transport, etc.)
         token = _current_agent_name.set(agent_name)
         try:
-            with self._span_context(
-                name=f"query:{agent_name}",
-                level="agent",
-                category="query_handling",
-                attributes={
-                    "query.agent": agent_name,
-                    "agent.name": agent_name,  # Also set explicitly on this span
-                    "query.text": query[:500] if query else None,
-                    "query.length": len(query) if query else 0,
-                    "query.session_id": session_id,
-                    "query.history_length": history_length,
-                },
-            ) as span:
+            with (
+                self._span_context(
+                    name=f"query:{agent_name}",
+                    level="agent",
+                    category="query_handling",
+                    attributes={
+                        "query.agent": agent_name,
+                        "agent.name": agent_name,  # Also set explicitly on this span
+                        "query.text": query[:500] if query else None,
+                        "query.length": len(query) if query else 0,
+                        "query.session_id": session_id,
+                        "query.history_length": history_length,
+                    },
+                ) as span
+            ):
                 yield span
         finally:
             _current_agent_name.reset(token)

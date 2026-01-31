@@ -131,9 +131,14 @@ async def query_agent(args: dict[str, Any]) -> dict[str, Any]:
         # Trace the outgoing request
         with traced_operation("query_agent", {"agent.url": agent_url}):
             try:
-                # Inject trace context into headers
+                # Inject trace context into headers (both OTEL and semantic)
                 headers = {"Content-Type": "application/json"}
                 inject_context(headers)
+
+                # Propagate semantic trace_id for cross-agent correlation
+                trace_id = semantic_tracer.get_trace_id()
+                if trace_id:
+                    headers["X-Semantic-Trace-Id"] = trace_id
 
                 async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
                     response = await client.post(
