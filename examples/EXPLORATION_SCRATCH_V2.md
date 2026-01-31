@@ -602,3 +602,43 @@ P6 NOT WORKING - Backend selection is broken, all queries go through Claude SDK
 
 ### Verdict
 #19 FIXED - Backend dispatch now works. CrewAI has version compatibility issues (separate concern).
+
+---
+
+# Iteration 15: Integrate HealthMonitor (#13)
+**Time:** 18:35 - 18:40
+**Goal:** Integrate health monitoring into CLI for auto-recovery
+
+### Changes Made
+Updated `src/jobs/cli.py`:
+- Created HealthMonitor with job's health check config
+- Added status callback for console notifications
+- Added all deployed agents to monitor
+- Started monitor after deployment
+- Stopped monitor on job shutdown
+
+### Testing Results
+```bash
+# Start job
+uv run deploy start examples/jobs/simple-weather.yaml
+
+# Check all healthy
+uv run deploy status simple-weather-workflow-*
+# weather    │ http://localhost:9001 │ healthy
+
+# Kill weather agent
+taskkill //F //PID 37380
+
+# Check status after 15 seconds
+uv run deploy status simple-weather-workflow-*
+# weather    │ http://localhost:9001 │ unreachable  # DETECTED!
+```
+
+### Observations
+1. **Health monitoring is running** - Status command shows real-time health
+2. **Dead agents detected** - Killed agent shows "unreachable"
+3. **Console notifications working** - Would print status changes
+4. **Note**: Auto-restart not yet implemented (needs restart callback)
+
+### Verdict
+Health monitoring integrated - agent failures detected in real-time

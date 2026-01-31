@@ -241,6 +241,48 @@ def start(
                 )
             )
 
+            # Start health monitoring
+            from .monitor import HealthMonitor, MonitorConfig
+
+            monitor_config = MonitorConfig(
+                check_interval=job.deployment.health_check.interval
+                if job.deployment.health_check
+                else 10.0,
+                max_consecutive_failures=3,
+                max_restarts=5,
+            )
+
+            async def on_status_change(agent_id: str, status):
+                from .monitor import AgentHealthStatus
+
+                if status == AgentHealthStatus.UNREACHABLE:
+                    console.print(
+                        f"[yellow]⚠ Agent {agent_id} is unreachable[/yellow]"
+                    )
+                elif status == AgentHealthStatus.RESTARTING:
+                    console.print(
+                        f"[cyan]↻ Restarting agent {agent_id}...[/cyan]"
+                    )
+                elif status == AgentHealthStatus.HEALTHY:
+                    console.print(
+                        f"[green]✓ Agent {agent_id} is healthy[/green]"
+                    )
+                elif status == AgentHealthStatus.FAILED:
+                    console.print(
+                        f"[red]✗ Agent {agent_id} failed (max restarts exceeded)[/red]"
+                    )
+
+            monitor = HealthMonitor(
+                config=monitor_config,
+                status_callback=on_status_change,
+            )
+
+            # Add all deployed agents to monitoring
+            for agent_id, agent in deployed_job.agents.items():
+                monitor.add_agent(agent_id, agent.url)
+
+            await monitor.start()
+
             # Keep running
             console.print("\n[yellow]Press Ctrl+C to stop the job and exit[/yellow]")
 
@@ -250,6 +292,7 @@ def start(
                     await asyncio.sleep(1)
             except KeyboardInterrupt:
                 console.print("\n[yellow]Stopping job...[/yellow]")
+                await monitor.stop()
                 await deployer.stop(deployed_job)
                 registry.update_status(deployed_job.job_id, "stopped")
                 console.print("[green][OK] Job stopped[/green]")
