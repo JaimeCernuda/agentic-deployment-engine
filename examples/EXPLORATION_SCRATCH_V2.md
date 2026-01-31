@@ -1634,3 +1634,180 @@ CI was failing because examples have 0% coverage. Fixed by:
 3. Test SSH deployment with network failure scenarios
 4. Create File Processing Pipeline use case
 5. Add more comprehensive tests for example agents
+
+---
+
+# Night Shift Session 2 - 2026-01-31
+
+## Session Goals (Ralph Wiggum Loop)
+- Fix Semantic Tracing Gap - instrument all backends/deployer/agents
+- Verify traces capture full internal monologue
+- Completion Promise: "All traces show complete internal monologue"
+
+---
+
+## Iteration 1: Instrument Claude SDK Backend
+**Time:** 06:30 - 06:40
+**Goal:** Add semantic tracing to capture every LLM message and tool call
+
+### Changes Made
+1. **`src/backends/claude_sdk.py`**:
+   - Import `get_semantic_tracer` from observability
+   - Track each LLM message with `tracer.llm_message()` span
+   - Track each tool_use block with `tracer.tool_call()` span
+   - Add events for message index, stop reason, and tool details
+   - Include tools_used_names in query result metadata
+
+### Commits
+- `97de79f` - feat: instrument Claude SDK backend with semantic tracing
+
+### Test Results
+- All 17 backend unit tests pass
+- Semantic tracing test creates proper JSON traces with:
+  - LLM messages with role, content, model
+  - Tool calls with name, input, result
+  - Parent-child span relationships
+
+---
+
+## Iteration 2: Instrument Job Deployer
+**Time:** 06:40 - 06:50
+**Goal:** Add semantic tracing to deployment lifecycle
+
+### Changes Made
+1. **`src/jobs/deployer.py`**:
+   - Import `get_semantic_tracer` from observability
+   - Wrap entire deployment in `tracer.job_deployment()` span
+   - Add `stage_started`/`stage_completed` events
+   - Wrap each agent startup in `tracer.agent_lifecycle()` span
+   - Add `process_started`/`health_check_passed` events
+   - Trace health check attempts with status codes and errors
+
+### Commits
+- `94fed55` - feat: instrument job deployer with semantic tracing
+
+### Test Results
+- All 40 deployer unit tests pass
+- Proper span hierarchy: job > stage > agent lifecycle
+
+---
+
+## Iteration 3: Instrument Agent Base Class
+**Time:** 06:50 - 07:00
+**Goal:** Add lifecycle tracing for agent startup/shutdown
+
+### Changes Made
+1. **`src/agents/base.py`**:
+   - Add agent startup lifecycle span in `run()` method
+   - Track `agent_initializing`, `agents_discovered`, `server_starting` events
+   - Add agent shutdown lifecycle span in `cleanup()` method
+   - Track `backend_cleaned_up`, `pool_cleaned_up`, `registry_cleaned_up` events
+
+### Commits
+- `e62e6db` - feat: add agent lifecycle semantic tracing
+
+### Test Results
+- All 26 agent unit tests pass
+- Proper lifecycle events for both startup and shutdown
+
+---
+
+## Current Semantic Tracing Status
+
+### Already Instrumented ✓
+1. **Claude SDK Backend** (`src/backends/claude_sdk.py`)
+   - `llm_message` spans for each LLM response
+   - `tool_call` spans for each tool invocation
+   - Events for message metadata
+
+2. **Job Deployer** (`src/jobs/deployer.py`)
+   - `job_deployment` span wrapping entire job
+   - `agent_lifecycle` span for each agent startup
+   - Events for stages and health checks
+
+3. **Agent Base** (`src/agents/base.py`)
+   - `query_handling` span in /query endpoint (already existed)
+   - `agent_lifecycle` spans for startup/shutdown
+
+4. **A2A Transport** (`src/agents/transport.py`)
+   - `a2a_message` span for agent-to-agent queries (already existed)
+
+### Still Needed
+1. ~~CrewAI backend (`src/backends/crewai.py`) - needs LLM/tool tracing~~ **DONE - uses callbacks**
+2. ~~Gemini backend (`src/backends/gemini_cli.py`) - needs LLM/tool tracing~~ **Extracts from JSON output**
+3. End-to-end verification with real job deployment
+
+---
+
+## Iteration 17: SDK Hooks for Internal Loop Tracing
+**Time:** 2026-01-31 00:30 - 01:00
+**Goal:** Redo backend tracing with proper SDK hooks (user feedback: previous approach was WRONG)
+
+### Problem Identified
+The previous tracing approach wrapped the external response stream, NOT the internal agentic loop.
+User feedback: "the agent should not be returning a 'call this tool operation' it should be calling the tools inside its agentic loop, which as far as I can tell it is opaque"
+
+### Solution Implemented
+
+#### 1. Claude SDK Backend (`src/backends/claude_sdk.py`)
+- Added `PreToolUse` hook: fires BEFORE each tool call inside the loop
+- Added `PostToolUse` hook: fires AFTER each tool call with result
+- Hooks are registered via `ClaudeAgentOptions.hooks` parameter
+- Span correlation between PreToolUse and PostToolUse using session+tool key
+- Simplified query method to framework-level LLM message tracing
+
+```python
+# Hook callbacks
+async def _pre_tool_use_hook(hook_input, matcher, context):
+    # Create span for tool call, store for correlation
+
+async def _post_tool_use_hook(hook_input, matcher, context):
+    # Find span, record result, finish span
+
+# Registration
+hooks=_create_tracing_hooks()  # Returns {"PreToolUse": [...], "PostToolUse": [...]}
+```
+
+#### 2. CrewAI Backend (`src/backends/crewai.py`)
+- Added `step_callback`: fires on each internal execution step
+- Added `task_callback`: fires on task completion
+- Callbacks detect tool steps vs reasoning steps and trace appropriately
+- Passed via `Crew(step_callback=..., task_callback=...)`
+
+#### 3. Gemini CLI Backend (`src/backends/gemini_cli.py`)
+- Uses `-o json` output format which includes tool_calls
+- Extracts tool calls from JSON and traces them
+- This is the best approach for CLI subprocess invocation
+- Added docstring clarifying the approach
+
+### Commits
+- `254fa9f` - feat: add SDK hooks for internal agentic loop tracing
+- `ae86f76` - feat: add callbacks for internal CrewAI execution tracing
+- `5edcfea` - docs: clarify Gemini CLI tracing approach in docstring
+
+### Key Learnings
+1. **SDK hooks fire INSIDE the loop** - gives true internal visibility
+2. **Framework-level tracing is still valid** - "what went in and came out"
+3. **Different backends need different approaches**:
+   - Claude SDK: PreToolUse/PostToolUse hooks
+   - CrewAI: step_callback/task_callback
+   - Gemini CLI: JSON output parsing (subprocess limitation)
+
+### Ralph Loop File Fix
+Renamed `.claude/ralph-loop.local copy.md` to `.claude/ralph-loop.local.md`
+The space in the filename was breaking the hook.
+
+---
+
+## Verification Steps Remaining
+
+- [ ] Deploy research-assistant job with tracing enabled
+- [ ] Query: "Research renewable energy"
+- [ ] Verify traces show:
+  - Job deployment span
+  - Each agent startup
+  - Controller receiving query
+  - **LLM thinking steps via hooks** (NEW)
+  - **Tool calls inside loop via PreToolUse/PostToolUse** (NEW)
+  - Each tool's input/output
+  - Final response assembly
