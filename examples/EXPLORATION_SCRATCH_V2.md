@@ -511,3 +511,65 @@ In `src/agents/base.py`:
 
 ### Verdict
 P6 NOT WORKING - Backend selection is broken, all queries go through Claude SDK
+
+---
+
+# Session Summary (Iterations 8-13)
+
+## Completed This Session
+
+### Features Implemented
+1. **Multi-turn conversation sessions** (#12)
+   - SessionManager with LRU eviction
+   - `--session` flag in CLI
+   - Context persists across queries with same session ID
+
+2. **Health monitoring infrastructure** (#13)
+   - HealthMonitor class with auto-restart capability
+   - Configurable check intervals, timeouts, restart policies
+   - Status callbacks for integration
+
+3. **Cross-node ALLOWED_HOSTS auto-config** (#18)
+   - Deployer automatically extracts hosts from agent URLs
+   - Populates AGENT_ALLOWED_HOSTS environment variable
+   - Enables cross-node A2A without manual config
+
+### Bugs Fixed
+1. **#18**: Cross-node deployment now auto-configures ALLOWED_HOSTS
+
+### Areas Verified
+- **P2**: Multi-turn context - WORKING via --session
+- **P3**: Log quality - COMPREHENSIVE, per-job/per-agent separation
+- **P7**: Cross-node A2A - WORKING after ALLOWED_HOSTS fix
+
+### Bugs Found
+- **#19**: Alternative backends (CrewAI, Gemini) configured but never used
+
+## GitHub Issues Created This Session
+- #18: Cross-node ALLOWED_HOSTS auto-configuration (FIXED)
+- #19: Alternative backends are dead code
+
+## Commits This Session
+- `01326e9` - fix: auto-configure AGENT_ALLOWED_HOSTS for cross-node A2A
+- `effbf04` - docs: update exploration notes with P2, P3, P6 findings
+
+## Status of Priority Areas
+
+| Area | Status | Notes |
+|------|--------|-------|
+| P1: Heartbeat | TESTED | No auto-recovery implemented yet |
+| P2: Multi-Turn | VERIFIED | --session flag works |
+| P3: Log Quality | VERIFIED | Comprehensive logging |
+| P4: SSH Deploy | FIXED | 4 bugs fixed earlier |
+| P5: Permissions | FIXED | MCP tool filtering bug fixed |
+| P6: Alt Backends | BROKEN | Bug #19 - backends not used |
+| P7: Cross-Node | FIXED | ALLOWED_HOSTS auto-config |
+| P8: Protocols | UNTESTED | |
+| P9: Cleanup | IMPLEMENTED | cleanup command added |
+| P10: Docs | UNTESTED | |
+
+## Remaining Work
+1. Fix #19: Wire up alternative backends to actually be used
+2. Integrate HealthMonitor into deployer for auto-restart
+3. Test protocol options (gRPC support?)
+4. Review documentation completeness
