@@ -65,6 +65,15 @@ class CrewAIBackend(AgentBackend):
         # Import CrewAI lazily to avoid dependency issues
         try:
             from crewai import LLM, Agent
+
+            # Suppress litellm debug logging (avoids apscheduler import errors)
+            try:
+                import litellm
+
+                litellm.suppress_debug_info = True
+                logging.getLogger("LiteLLM").setLevel(logging.WARNING)
+            except ImportError:
+                pass  # litellm not installed, no need to suppress
         except ImportError as e:
             raise ConfigurationError(
                 "CrewAI dependencies not installed. Install with: pip install crewai"
