@@ -80,7 +80,13 @@ Always cite your sources and indicate the reliability of information found.""",
 
 def main():
     """Run the Searcher Agent."""
-    agent = SearcherAgent()
+    import os
+
+    # Read port from environment (set by deployer)
+    port = int(os.getenv("AGENT_PORT", "9021"))
+
+    agent = SearcherAgent(port=port)
+    print(f"Starting Searcher Agent on port {port}...")
     agent.run()
 
 

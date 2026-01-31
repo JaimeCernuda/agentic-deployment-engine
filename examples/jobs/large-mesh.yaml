@@ -1,0 +1,112 @@
+# Large Mesh Scale Test - 6 Agents
+# Using known-working agents for initial scale test
+
+job:
+  name: large-mesh
+  version: 1.0.0
+  description: Scale test with 6 agents in hub-spoke topology
+  tags:
+    - scale-test
+    - mesh
+    - 6-agents
+
+agents:
+  # Weather agent
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Maps agent
+  - id: maps
+    type: MapsAgent
+    module: examples.agents.maps_agent
+    config:
+      port: 9002
+      name: Maps Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Stock agent
+  - id: stock
+    type: StockAgent
+    module: examples.agents.stock_agent
+    config:
+      port: 9003
+      name: Stock Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Calculator agent
+  - id: calculator
+    type: CalculatorAgent
+    module: examples.agents.calculator_agent
+    config:
+      port: 9004
+      name: Calculator Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Searcher agent
+  - id: searcher
+    type: SearcherAgent
+    module: examples.agents.searcher_agent
+    config:
+      port: 9005
+      name: Searcher Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Controller/Coordinator hub
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+    - maps
+    - stock
+    - calculator
+    - searcher
+
+deployment:
+  strategy: sequential
+  timeout: 60
+  health_check:
+    enabled: true
+    interval: 10
+    retries: 3
+
+execution:
+  entry_point: controller
+  auto_start: true
