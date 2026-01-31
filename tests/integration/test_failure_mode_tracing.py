@@ -14,7 +14,6 @@ import pytest
 
 from src.observability.semantic import (
     SemanticTracer,
-    get_semantic_tracer,
     reset_semantic_tracer,
 )
 
@@ -269,9 +268,9 @@ class TestTraceFileIntegrity:
             tracer.record_tool_result(span, {"result": "ok"}, success=True)
 
         # Error span
-        with pytest.raises(Exception):
+        with pytest.raises(RuntimeError):
             with tracer.tool_call("error_tool", {"x": 2}):
-                raise Exception("Tool failed")
+                raise RuntimeError("Tool failed")
 
         # Another success span
         with tracer.llm_message("assistant", "Final response", "gpt-4"):

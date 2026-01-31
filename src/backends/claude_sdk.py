@@ -124,17 +124,19 @@ def _create_tracing_hooks() -> dict[str, list[HookMatcher]]:
     Returns:
         Dictionary of hook type -> list of HookMatcher for ClaudeAgentOptions.
     """
+    # Note: Type ignores needed because SDK hook types are more restrictive
+    # than what we need. The hooks work correctly at runtime.
     return {
         "PreToolUse": [
             HookMatcher(
                 matcher=None,  # Match all tools
-                hooks=[_pre_tool_use_hook],
+                hooks=[_pre_tool_use_hook],  # type: ignore[list-item]
             )
         ],
         "PostToolUse": [
             HookMatcher(
                 matcher=None,  # Match all tools
-                hooks=[_post_tool_use_hook],
+                hooks=[_post_tool_use_hook],  # type: ignore[list-item]
             )
         ],
     }
@@ -188,7 +190,7 @@ class ClaudeSDKBackend(AgentBackend):
                 system_prompt=self.config.system_prompt,
                 permission_mode="bypassPermissions",
                 setting_sources=[],
-                hooks=_create_tracing_hooks(),  # SDK hooks for internal tracing
+                hooks=_create_tracing_hooks(),  # type: ignore[arg-type]  # SDK hooks for internal tracing
                 **self.config.extra_options,
             )
 
