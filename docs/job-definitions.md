@@ -515,18 +515,80 @@ The validator checks:
 
 ## CLI commands
 
+### Job lifecycle
+
 ```bash
 # Validate job definition
 uv run deploy validate job.yaml
+uv run deploy validate job.yaml --verbose  # Show agent details
 
 # Preview deployment plan
 uv run deploy plan job.yaml
+uv run deploy plan job.yaml --format json  # JSON output
 
-# Deploy and run
+# Deploy and start
 uv run deploy start job.yaml
+uv run deploy start job.yaml --name my-custom-name  # Override job name
 
-# Stop a running job (placeholder)
+# Stop a running job
 uv run deploy stop job-name
+uv run deploy stop job-name --force  # Force kill processes
+```
+
+### Monitoring and querying
+
+```bash
+# List all jobs
+uv run deploy list              # Running jobs only
+uv run deploy list --all        # All jobs (including stopped)
+uv run deploy list --limit 50   # Limit results
+
+# Check job status and agent health
+uv run deploy status job-name
+
+# Query a running job
+uv run deploy query job-name "What is the weather?"
+uv run deploy query job-name "Hello" --agent weather  # Query specific agent
+uv run deploy query job-name "Hello" --timeout 120    # Custom timeout
+uv run deploy query job-name "Hello" --raw            # Raw JSON output
+
+# Multi-turn conversations (maintains context)
+uv run deploy query job-name "My name is Alice" --session my-session
+uv run deploy query job-name "What is my name?" --session my-session
+
+# View logs
+uv run deploy logs job-name              # All agents
+uv run deploy logs job-name --agent weather  # Specific agent
+uv run deploy logs job-name --tail 100   # Last 100 lines
+```
+
+### Cleanup
+
+```bash
+# Clean up old jobs
+uv run deploy cleanup                    # Stopped jobs older than 7 days
+uv run deploy cleanup --older-than 24h   # Older than 24 hours
+uv run deploy cleanup --status all       # All non-running jobs
+uv run deploy cleanup my-job-id          # Remove specific job
+uv run deploy cleanup --dry-run          # Preview without deleting
+uv run deploy cleanup --no-logs          # Keep log files
+```
+
+### Health monitoring
+
+When you start a job with `uv run deploy start`, automatic health monitoring runs in the background:
+- Checks agent health at regular intervals
+- Reports unreachable agents
+- Displays status changes (healthy, unreachable, restarting, failed)
+
+Configure health check behavior in the job YAML:
+```yaml
+deployment:
+  health_check:
+    enabled: true
+    interval: 10    # Seconds between checks
+    retries: 3      # Retries before marking unhealthy
+    timeout: 5      # Per-check timeout
 ```
 
 ## See also

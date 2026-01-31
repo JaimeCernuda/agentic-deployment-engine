@@ -643,3 +643,132 @@ uv run deploy status simple-weather-workflow-*
 
 ### Verdict
 Health monitoring integrated - agent failures detected in real-time
+
+---
+
+# Iteration 16: Protocol Options (P8)
+**Time:** 18:40 - 18:45
+**Goal:** Investigate protocol options (gRPC?)
+
+### Investigation
+Searched codebase for protocol-related code:
+```bash
+grep -r "grpc|protocol" src/
+```
+
+### Findings
+1. **A2A Protocol is HTTP/JSON only** - No gRPC for agent-to-agent communication
+2. **gRPC only for OTEL** - OpenTelemetry exporter supports gRPC protocol
+3. **Endpoints are REST-like**:
+   - `GET /.well-known/agent-configuration` - Discovery
+   - `POST /query` - Query agent
+   - `GET /health` - Health check
+4. **No WebSocket or streaming** - Queries are request/response only
+
+### Architecture Summary
+```
+User → HTTP POST → Controller → HTTP POST → Weather/Maps Agents
+                                  ↓
+                            HTTP Response
+```
+
+### Features That Could Use gRPC
+- [FEATURE-14]: gRPC transport option for low-latency environments
+- [FEATURE-15]: WebSocket for streaming responses
+- [FEATURE-16]: Message queue integration (Redis pub/sub, RabbitMQ)
+
+### Verdict
+P8: HTTP/JSON only - no alternative protocol options currently
+
+---
+
+# Iteration 17: Documentation Review (P10)
+**Time:** Session continuation
+**Goal:** Review documentation completeness
+
+### Documentation Structure
+```
+docs/
+├── architecture.md        # System design, patterns
+├── building-agents.md     # Creating custom agents
+├── configuration.md       # Environment variables
+├── getting-started.md     # Quick start guide
+├── job-definitions.md     # YAML job format
+├── mcp-transport.md       # MCP protocol details
+├── security.md            # Auth and permissions
+├── ssh-deployment.md      # Remote deployment
+├── testing.md             # Test framework
+└── troubleshooting.md     # Common issues
+```
+
+### Gaps Found
+
+1. **CLI Commands Not Fully Documented** (FIXED)
+   - Missing: `list`, `status`, `query`, `logs`, `cleanup`
+   - Missing: `--session` flag for multi-turn context
+   - Missing: Health monitoring integration details
+   - **Fixed:** Updated `docs/job-definitions.md` with full CLI reference
+
+2. **Log Path Incorrect** (FIXED)
+   - `troubleshooting.md` referenced `src/logs/` but jobs use `logs/jobs/{job-id}/`
+   - **Fixed:** Updated path references
+
+3. **Missing Documentation Topics**
+   - No doc for alternative backends (CrewAI/Ollama/Gemini)
+   - No doc for session/context management
+   - No doc for HealthMonitor integration
+   - No API reference for extending backends
+
+### Files Updated
+- `docs/job-definitions.md` - Added comprehensive CLI command reference
+- `docs/troubleshooting.md` - Fixed log path references
+
+### Verdict
+P10: Documentation updated - major CLI gaps fixed, some advanced topics still undocumented
+
+---
+
+# Session Summary (All Iterations)
+
+## All Priority Areas Status
+
+| Priority | Area | Status | Notes |
+|----------|------|--------|-------|
+| P1 | Heartbeat & Recovery | TESTED | No auto-recovery (needs restart callback) |
+| P2 | Multi-Turn Context | VERIFIED ✓ | --session flag works |
+| P3 | Log Quality | VERIFIED ✓ | Per-job/per-agent, comprehensive |
+| P4 | SSH Deployment | FIXED ✓ | 4 bugs fixed |
+| P5 | Security/Permissions | TESTED | MCP tool filtering issue found |
+| P6 | Alternative Backends | FIXED ✓ | Backend dispatch now works |
+| P7 | Cross-Node A2A | FIXED ✓ | ALLOWED_HOSTS auto-config |
+| P8 | Protocol Options | DOCUMENTED | HTTP/JSON only |
+| P9 | Cleanup | IMPLEMENTED ✓ | cleanup command exists |
+| P10 | Documentation | UPDATED ✓ | CLI docs added |
+
+## GitHub Issues Created
+- #11: Status shows 'healthy' for dead agents
+- #12: No multi-turn context → FIXED
+- #13: No auto-recovery → Health monitoring integrated
+- #14: Permission presets filter MCP tools
+- #15: Add cleanup command → IMPLEMENTED
+- #16: SSH multiple uv paths → FIXED
+- #17: SSH host alias resolution
+- #18: Cross-node ALLOWED_HOSTS → FIXED
+- #19: Alternative backends unused → FIXED
+
+## Commits This Session
+- `781407a` - fix: SSH deployment bugs
+- `a3a80b1` - feat: multi-turn sessions and health monitoring
+- `01326e9` - fix: auto-configure ALLOWED_HOSTS for cross-node
+- `d2e8480` - fix: wire up alternative backends (#19)
+- `7c64d40` - feat: integrate health monitoring into CLI (#13)
+- `3cab966` - docs: update exploration notes
+- `{NEW}` - docs: update CLI documentation for P10
+
+## Remaining Work
+1. Implement auto-restart callback in HealthMonitor
+2. Document alternative backends
+3. Fix CrewAI version compatibility
+4. Add OTEL trace IDs to logs
+5. Fix #11 (status column inconsistency)
+6. Fix #14 (permission preset MCP tool filtering)

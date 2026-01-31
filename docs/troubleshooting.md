@@ -264,14 +264,20 @@ export AGENT_LOG_LEVEL=DEBUG
 
 ### View agent logs
 
-Logs are written to `src/logs/`:
+When running individual agents, logs are written to `src/logs/`. When using job deployment, logs are in `logs/jobs/<job-id>/`:
 
 ```bash
-# Watch weather agent logs
+# Individual agent logs
 tail -f src/logs/weather_agent.log
 
+# Job deployment logs (using CLI)
+uv run deploy logs my-job --tail 100
+
+# Or directly:
+tail -f logs/jobs/my-job-20260130-120000/controller.log
+
 # Search for errors
-grep -i error src/logs/*.log
+grep -i error logs/jobs/my-job-*/*.log
 ```
 
 ### Log content truncated
