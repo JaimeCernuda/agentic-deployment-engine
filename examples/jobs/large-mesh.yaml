@@ -1,14 +1,14 @@
-# Large Mesh Scale Test - 6 Agents
-# Using known-working agents for initial scale test
+# Large Mesh Scale Test - 11 Agents
+# Full scale test with all available agents
 
 job:
   name: large-mesh
   version: 1.0.0
-  description: Scale test with 6 agents in hub-spoke topology
+  description: Scale test with 11 agents in hub-spoke topology
   tags:
     - scale-test
     - mesh
-    - 6-agents
+    - 11-agents
 
 agents:
   # Weather agent
@@ -76,6 +76,71 @@ agents:
       cpu: 0.5
       memory: 512M
 
+  # Summarizer agent
+  - id: summarizer
+    type: SummarizerAgent
+    module: examples.agents.summarizer_agent
+    config:
+      port: 9006
+      name: Summarizer Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Fact Checker agent
+  - id: fact_checker
+    type: FactCheckerAgent
+    module: examples.agents.fact_checker_agent
+    config:
+      port: 9007
+      name: Fact Checker Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Linter agent
+  - id: linter
+    type: LinterAgent
+    module: examples.agents.linter_agent
+    config:
+      port: 9008
+      name: Linter Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Security agent
+  - id: security
+    type: SecurityAgent
+    module: examples.agents.security_agent
+    config:
+      port: 9009
+      name: Security Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Complexity agent
+  - id: complexity
+    type: ComplexityAgent
+    module: examples.agents.complexity_agent
+    config:
+      port: 9010
+      name: Complexity Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 0.5
+      memory: 512M
+
   # Controller/Coordinator hub
   - id: controller
     type: ControllerAgent
@@ -98,10 +163,15 @@ topology:
     - stock
     - calculator
     - searcher
+    - summarizer
+    - fact_checker
+    - linter
+    - security
+    - complexity
 
 deployment:
   strategy: sequential
-  timeout: 60
+  timeout: 120
   health_check:
     enabled: true
     interval: 10

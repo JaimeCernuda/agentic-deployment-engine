@@ -90,7 +90,11 @@ Use your query_agent tool to communicate with the specialized agents.""",
 
 def main():
     """Run the Research Coordinator Agent."""
-    agent = ResearchCoordinatorAgent()
+    import os
+
+    port = int(os.getenv("AGENT_PORT", "9020"))
+    agent = ResearchCoordinatorAgent(port=port)
+    print(f"Starting Research Coordinator Agent on port {port}...")
     agent.run()
 
 

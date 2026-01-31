@@ -60,8 +60,11 @@ Be concise and actionable in your feedback.""",
 
 def main():
     """Run the linter agent."""
-    print("Starting Linter Agent on port 9011...")
-    agent = LinterAgent()
+    import os
+
+    port = int(os.getenv("AGENT_PORT", "9011"))
+    agent = LinterAgent(port=port)
+    print(f"Starting Linter Agent on port {port}...")
     agent.run()
 
 

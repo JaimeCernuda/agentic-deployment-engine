@@ -70,7 +70,11 @@ Always maintain accuracy while condensing information.""",
 
 def main():
     """Run the Summarizer Agent."""
-    agent = SummarizerAgent()
+    import os
+
+    port = int(os.getenv("AGENT_PORT", "9022"))
+    agent = SummarizerAgent(port=port)
+    print(f"Starting Summarizer Agent on port {port}...")
     agent.run()
 
 

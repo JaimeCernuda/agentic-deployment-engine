@@ -81,7 +81,11 @@ Always be objective and cite sources for verification.""",
 
 def main():
     """Run the Fact Checker Agent."""
-    agent = FactCheckerAgent()
+    import os
+
+    port = int(os.getenv("AGENT_PORT", "9023"))
+    agent = FactCheckerAgent(port=port)
+    print(f"Starting Fact Checker Agent on port {port}...")
     agent.run()
 
 

@@ -61,8 +61,11 @@ Focus on actionable security findings.""",
 
 def main():
     """Run the security agent."""
-    print("Starting Security Agent on port 9012...")
-    agent = SecurityAgent()
+    import os
+
+    port = int(os.getenv("AGENT_PORT", "9012"))
+    agent = SecurityAgent(port=port)
+    print(f"Starting Security Agent on port {port}...")
     agent.run()
 
 

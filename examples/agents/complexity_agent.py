@@ -65,8 +65,11 @@ Focus on maintainability and readability.""",
 
 def main():
     """Run the complexity agent."""
-    print("Starting Complexity Agent on port 9013...")
-    agent = ComplexityAgent()
+    import os
+
+    port = int(os.getenv("AGENT_PORT", "9013"))
+    agent = ComplexityAgent(port=port)
+    print(f"Starting Complexity Agent on port {port}...")
     agent.run()
 
 
