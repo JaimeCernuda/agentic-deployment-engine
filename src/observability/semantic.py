@@ -252,6 +252,9 @@ class SemanticTracer:
         # Ensure consistent trace_id across all spans in the same request
         if self._trace_id is None:
             self._trace_id = str(uuid.uuid4())
+            # Also initialize the exporter's trace file
+            if self.exporter:
+                self.exporter.start_trace(self._trace_id, f"agent-query-{self._trace_id[:8]}")
 
         return SpanData(
             trace_id=self._trace_id,
@@ -703,6 +706,7 @@ def get_semantic_tracer(
             )
             output = output_dir or settings.semantic_trace_dir
             svc_name = service_name or settings.otel_service_name
+
         except (ImportError, AttributeError):
             # Fall back to environment variables
             enabled = (
