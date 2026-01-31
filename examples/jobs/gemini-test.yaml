@@ -1,0 +1,58 @@
+# Gemini CLI Backend Test
+# Tests the Gemini CLI backend for semantic tracing verification
+
+job:
+  name: gemini-test
+  version: 1.0.0
+  description: Test job for Gemini CLI backend tracing
+  tags:
+    - gemini
+    - test
+    - experimental
+
+agents:
+  # Weather agent using Gemini CLI
+  - id: weather
+    type: WeatherAgent
+    module: examples.agents.weather_agent
+    config:
+      port: 9001
+      name: Weather Agent (Gemini)
+    deployment:
+      target: localhost
+      environment:
+        AGENT_BACKEND_TYPE: gemini
+    resources:
+      cpu: 0.5
+      memory: 512M
+
+  # Controller agent using Claude SDK (for comparison)
+  - id: controller
+    type: ControllerAgent
+    module: examples.agents.controller_agent
+    config:
+      port: 9000
+      name: Controller Agent
+    deployment:
+      target: localhost
+    resources:
+      cpu: 1.0
+      memory: 1G
+
+topology:
+  type: hub-spoke
+  hub: controller
+  spokes:
+    - weather
+
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
+
+execution:
+  entry_point: controller
+  auto_start: true
