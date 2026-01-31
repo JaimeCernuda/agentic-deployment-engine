@@ -521,10 +521,41 @@ Always be concise and professional in your responses."""
             )
             self.logger.info("OpenTelemetry tracing enabled")
 
-        # Discover agents before starting server if configured
-        if self.connected_agents:
-            self.logger.info("Discovering agents before startup...")
-            asyncio.run(self._discover_agents())
+        # Semantic tracing for agent lifecycle
+        semantic_tracer = get_semantic_tracer()
+        with semantic_tracer.agent_lifecycle(
+            agent_id=self.name.lower().replace(" ", "_"),
+            agent_name=self.name,
+            action="start",
+            port=self.port,
+            host=self.host,
+        ) as lifecycle_span:
+            semantic_tracer.add_event(
+                lifecycle_span,
+                "agent_initializing",
+                {
+                    "backend": self._backend.name
+                    if hasattr(self, "_backend")
+                    else "unknown",
+                    "connected_agents": len(self.connected_agents),
+                },
+            )
+
+            # Discover agents before starting server if configured
+            if self.connected_agents:
+                self.logger.info("Discovering agents before startup...")
+                asyncio.run(self._discover_agents())
+                semantic_tracer.add_event(
+                    lifecycle_span,
+                    "agents_discovered",
+                    {"count": len(self.connected_agents)},
+                )
+
+            semantic_tracer.add_event(
+                lifecycle_span,
+                "server_starting",
+                {"host": "0.0.0.0", "port": self.port},
+            )
 
         # Configure uvicorn logging to use our logger (stdout, not stderr)
         log_config = {
@@ -603,63 +634,79 @@ Always be concise and professional in your responses."""
         self._cleanup_done = True
         self.logger.info("Cleaning up agent resources...")
 
-        # Cleanup backend
-        if hasattr(self, "_backend") and self._backend:
-            try:
-                await self._backend.cleanup()
-                self.logger.debug("Backend cleaned up")
-            except Exception as e:
-                self.logger.error(f"Error cleaning up backend: {e}")
+        # Semantic tracing for agent shutdown
+        semantic_tracer = get_semantic_tracer()
+        with semantic_tracer.agent_lifecycle(
+            agent_id=self.name.lower().replace(" ", "_"),
+            agent_name=self.name,
+            action="stop",
+            port=self.port,
+            host=self.host,
+        ) as lifecycle_span:
+            # Cleanup backend
+            if hasattr(self, "_backend") and self._backend:
+                try:
+                    await self._backend.cleanup()
+                    self.logger.debug("Backend cleaned up")
+                    semantic_tracer.add_event(lifecycle_span, "backend_cleaned_up", {})
+                except Exception as e:
+                    self.logger.error(f"Error cleaning up backend: {e}")
 
-        # Cleanup all clients in the pool (legacy)
-        # Note: Claude SDK clients may throw cancel scope errors when disconnected
-        # from a different task than they were created in. This is expected during
-        # shutdown and we simply clear the pool - clients will be garbage collected.
-        clients_closed = 0
-        while not self._client_pool.empty():
-            try:
-                client = self._client_pool.get_nowait()
-                await client.disconnect()
-                clients_closed += 1
-            except asyncio.QueueEmpty:
-                break
-            except RuntimeError as e:
-                # Cancel scope errors are expected when cleanup runs in different task
-                if "cancel scope" in str(e).lower():
-                    clients_closed += 1  # Client will be GC'd
-                    self.logger.debug(f"Client cleanup deferred to GC: {e}")
-                else:
-                    self.logger.error(f"Error disconnecting pool client: {e}")
-            except Exception as e:
-                self.logger.warning(f"Error disconnecting pool client: {e}")
+            # Cleanup all clients in the pool (legacy)
+            # Note: Claude SDK clients may throw cancel scope errors when disconnected
+            # from a different task than they were created in. This is expected during
+            # shutdown and we simply clear the pool - clients will be garbage collected.
+            clients_closed = 0
+            while not self._client_pool.empty():
+                try:
+                    client = self._client_pool.get_nowait()
+                    await client.disconnect()
+                    clients_closed += 1
+                except asyncio.QueueEmpty:
+                    break
+                except RuntimeError as e:
+                    # Cancel scope errors are expected when cleanup runs in different task
+                    if "cancel scope" in str(e).lower():
+                        clients_closed += 1  # Client will be GC'd
+                        self.logger.debug(f"Client cleanup deferred to GC: {e}")
+                    else:
+                        self.logger.error(f"Error disconnecting pool client: {e}")
+                except Exception as e:
+                    self.logger.warning(f"Error disconnecting pool client: {e}")
 
-        if clients_closed > 0:
-            self.logger.debug(f"Closed {clients_closed} pooled clients")
+            if clients_closed > 0:
+                self.logger.debug(f"Closed {clients_closed} pooled clients")
+                semantic_tracer.add_event(
+                    lifecycle_span,
+                    "pool_cleaned_up",
+                    {"clients_closed": clients_closed},
+                )
 
-        # Cleanup legacy client if exists
-        if self.claude_client:
-            try:
-                await self.claude_client.disconnect()
-                self.logger.debug("Legacy Claude SDK client disconnected")
-            except RuntimeError as e:
-                # Cancel scope errors are expected when cleanup runs in different task
-                if "cancel scope" in str(e).lower():
-                    self.logger.debug(f"Client cleanup deferred to GC: {e}")
-                else:
-                    self.logger.error(f"Error disconnecting Claude client: {e}")
-            except Exception as e:
-                self.logger.warning(f"Error disconnecting Claude client: {e}")
-            self.claude_client = None
+            # Cleanup legacy client if exists
+            if self.claude_client:
+                try:
+                    await self.claude_client.disconnect()
+                    self.logger.debug("Legacy Claude SDK client disconnected")
+                except RuntimeError as e:
+                    # Cancel scope errors are expected when cleanup runs in different task
+                    if "cancel scope" in str(e).lower():
+                        self.logger.debug(f"Client cleanup deferred to GC: {e}")
+                    else:
+                        self.logger.error(f"Error disconnecting Claude client: {e}")
+                except Exception as e:
+                    self.logger.warning(f"Error disconnecting Claude client: {e}")
+                self.claude_client = None
 
-        # Cleanup agent registry
-        if self.agent_registry:
-            try:
-                await self.agent_registry.cleanup()
-                self.logger.debug("Agent registry cleaned up")
-            except Exception as e:
-                self.logger.error(f"Error cleaning up agent registry: {e}")
+            # Cleanup agent registry
+            if self.agent_registry:
+                try:
+                    await self.agent_registry.cleanup()
+                    self.logger.debug("Agent registry cleaned up")
+                    semantic_tracer.add_event(lifecycle_span, "registry_cleaned_up", {})
+                except Exception as e:
+                    self.logger.error(f"Error cleaning up agent registry: {e}")
 
-        # Shutdown telemetry
-        shutdown_telemetry()
+            # Shutdown telemetry
+            shutdown_telemetry()
 
-        self.logger.info("Agent cleanup complete")
+            self.logger.info("Agent cleanup complete")
