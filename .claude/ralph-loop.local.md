@@ -1,6 +1,6 @@
 ---
 active: true
-iteration: 12
+iteration: 13
 max_iterations: 100
 completion_promise: null
 started_at: "2026-01-31T06:32:48Z"
@@ -221,10 +221,17 @@ Open Questions (from user) - HONEST STATUS:
 - Session management commands
 - Standalone query tool
 
-**Phase 4: Scale Testing**
-- 10+ agent mesh deployment
-- Complex reasoning agent
-- 100 concurrent query losad test
+**Phase 4: Scale Testing** - ✅ PARTIAL (Iteration 12)
+- [x] 6 agent mesh deployment - WORKS (large-mesh.yaml)
+- [ ] 10+ agent deployment - Needs more agents with AGENT_PORT env reading
+- [ ] Complex reasoning agent
+- [ ] 100 concurrent query load test
+
+**Scale Test Results (Iteration 12):**
+- Created large-mesh.yaml with 6 agents
+- Fixed searcher_agent.py to read AGENT_PORT from env
+- All 6 agents deployed and healthy
+- Known issue: Claude hallucinates wrong ports (8000-8002) despite correct URLs in prompt
 
 **Phase 5: Complex Workflow Testing**
 - Multi-tool research queries with full trace verification
@@ -526,7 +533,7 @@ Agents: ingester, transformer, validator, writer
 
 ## Ralph Loop Protocol
 
-Each iteration: 11. READ this plan - what's next?
+Each iteration: 13. READ this plan - what's next?
 2. READ scratch file - what's done?
 3. IMPLEMENT one small piece
 4. TEST it actually works
