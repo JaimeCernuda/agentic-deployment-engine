@@ -6,8 +6,6 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 from src.observability.semantic import (
     JSONFileExporter,
     SemanticTracer,
@@ -96,7 +94,7 @@ class TestJSONFileExporter:
         """Exporter should create output directory if it doesn't exist."""
         with tempfile.TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "traces" / "nested"
-            exporter = JSONFileExporter(output_dir)
+            JSONFileExporter(output_dir)  # Creating exporter creates the directory
 
             assert output_dir.exists()
 
