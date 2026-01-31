@@ -2,6 +2,7 @@
 
 Uses CrewAI framework with Ollama as the LLM provider for local inference.
 CrewAI enables role-based agent workflows with task delegation.
+Uses CrewAI callbacks for internal observability of execution steps.
 """
 
 import asyncio
@@ -14,6 +15,94 @@ from ..observability.semantic import get_semantic_tracer
 from .base import AgentBackend, BackendConfig, QueryResult
 
 logger = logging.getLogger(__name__)
+
+
+def _create_step_callback(model_name: str) -> Any:
+    """Create a step callback for tracing internal CrewAI execution.
+
+    This callback fires INSIDE the CrewAI execution loop, giving us
+    visibility into each step the agent takes.
+
+    Args:
+        model_name: The model name for tracing.
+
+    Returns:
+        Callback function for CrewAI's step_callback parameter.
+    """
+
+    def step_callback(step_output: Any) -> None:
+        """Called on each step inside the CrewAI execution loop."""
+        tracer = get_semantic_tracer()
+
+        # Extract step information
+        step_text = str(step_output)[:500] if step_output else ""
+
+        # Check if this is a tool use step
+        is_tool_use = hasattr(step_output, "tool") or "tool" in step_text.lower()
+
+        if is_tool_use:
+            # Try to extract tool info
+            tool_name = getattr(step_output, "tool", "unknown_tool")
+            tool_input = getattr(step_output, "tool_input", {})
+
+            with tracer.tool_call(str(tool_name), tool_input) as span:
+                tracer.add_event(
+                    span,
+                    "crewai_tool_step",
+                    {"step_output": step_text[:200]},
+                )
+            logger.debug(f"[CALLBACK] CrewAI tool step: {tool_name}")
+        else:
+            # This is an LLM reasoning step
+            with tracer.llm_message(
+                role="assistant",
+                content=step_text,
+                model=model_name,
+            ) as span:
+                tracer.add_event(
+                    span,
+                    "crewai_reasoning_step",
+                    {"step_length": len(step_text)},
+                )
+            logger.debug(f"[CALLBACK] CrewAI reasoning step: {step_text[:50]}...")
+
+    return step_callback
+
+
+def _create_task_callback(model_name: str) -> Any:
+    """Create a task callback for tracing CrewAI task completion.
+
+    Args:
+        model_name: The model name for tracing.
+
+    Returns:
+        Callback function for CrewAI's task_callback parameter.
+    """
+
+    def task_callback(task_output: Any) -> None:
+        """Called when a task completes inside CrewAI."""
+        tracer = get_semantic_tracer()
+
+        task_result = str(task_output)[:500] if task_output else ""
+        description = getattr(task_output, "description", "")[:200]
+
+        with tracer.llm_message(
+            role="assistant",
+            content=task_result,
+            model=model_name,
+        ) as span:
+            tracer.add_event(
+                span,
+                "crewai_task_completed",
+                {
+                    "task_description": description,
+                    "result_length": len(task_result),
+                },
+            )
+
+        logger.debug(f"[CALLBACK] CrewAI task completed: {description[:50]}...")
+
+    return task_callback
 
 
 class CrewAIBackend(AgentBackend):
@@ -171,23 +260,31 @@ class CrewAIBackend(AgentBackend):
                 agent=agent,
             )
 
-            # Create a temporary crew with just this task
+            # Create callbacks for internal tracing
+            # These fire INSIDE the CrewAI loop for true internal visibility
+            model_name = f"ollama/{self.ollama_model}"
+            step_cb = _create_step_callback(model_name)
+            task_cb = _create_task_callback(model_name)
+
+            # Create a temporary crew with callbacks for internal tracing
             crew = Crew(
                 agents=[agent],
                 tasks=[task],
                 verbose=False,
+                step_callback=step_cb,  # Fires on each internal step
+                task_callback=task_cb,  # Fires on task completion
             )
 
-            # Trace the LLM query execution
+            # Framework-level: trace the incoming query
             with tracer.llm_message(
                 role="user",
                 content=prompt,
-                model=f"ollama/{self.ollama_model}",
+                model=model_name,
             ) as user_span:
                 tracer.add_event(
                     user_span,
-                    "crewai_task_created",
-                    {"task_description": prompt[:200]},
+                    "crewai_query_received",
+                    {"query_length": len(prompt)},
                 )
 
             # CrewAI is synchronous, run in thread pool
@@ -197,15 +294,16 @@ class CrewAIBackend(AgentBackend):
             # Extract response text
             response_text = str(result)
 
-            # Trace the response
+            # Framework-level: trace the final response
+            # (internal steps already traced via callbacks)
             with tracer.llm_message(
                 role="assistant",
                 content=response_text,
-                model=f"ollama/{self.ollama_model}",
+                model=model_name,
             ) as response_span:
                 tracer.add_event(
                     response_span,
-                    "crewai_task_completed",
+                    "crewai_query_completed",
                     {"response_length": len(response_text)},
                 )
 
@@ -236,20 +334,10 @@ class CrewAIBackend(AgentBackend):
         Yields:
             The complete response (no true streaming support)
         """
-        tracer = get_semantic_tracer()
-
         # CrewAI doesn't support streaming natively
         # Execute as regular query and yield result
+        # (internal tracing handled by callbacks in query())
         result = await self.query(prompt, context)
-
-        # Trace the streamed response
-        with tracer.llm_message(
-            role="assistant",
-            content=result.response,
-            model=f"ollama/{self.ollama_model}",
-        ) as span:
-            tracer.add_event(span, "stream_complete", {"chunks": 1})
-
         yield {"type": "response", "content": result.response}
 
     async def cleanup(self) -> None:
