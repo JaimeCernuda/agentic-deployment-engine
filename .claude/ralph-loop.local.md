@@ -8,7 +8,14 @@ started_at: "2026-01-31T06:32:48Z"
 
 ## Phases Overview
 
-**Phase 1: Fix Semantic Tracing** - IN PROGRESS (Real Testing Underway)
+**Phase 1: Fix Semantic Tracing** - ✅ COMPLETE (Iteration 11)
+
+**Summary:** All tracing infrastructure is working across all backends. Remaining gaps are SDK/design limitations.
+- Claude SDK: Full tracing via hooks (tool calls, LLM messages, A2A)
+- CrewAI/Ollama: Tracing works (model has tool parsing issues - separate bug)
+- Gemini CLI: Tracing works (model not calling tools - separate bug)
+- Multi-turn: Session context captured (session_id, history_length)
+- Errors: Timeout, connection, SSRF all captured with status=error
 
 ### Infrastructure Done:
 - ✅ **Trace files now written** (commit 013cf59) - Fixed `exporter.start_trace()` not called
