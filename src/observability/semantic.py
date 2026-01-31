@@ -254,7 +254,9 @@ class SemanticTracer:
             self._trace_id = str(uuid.uuid4())
             # Also initialize the exporter's trace file
             if self.exporter:
-                self.exporter.start_trace(self._trace_id, f"agent-query-{self._trace_id[:8]}")
+                self.exporter.start_trace(
+                    self._trace_id, f"agent-query-{self._trace_id[:8]}"
+                )
 
         return SpanData(
             trace_id=self._trace_id,
