@@ -107,6 +107,16 @@ class AgentSettings(BaseSettings):
         description="Max characters for log content (0=unlimited)",
     )
 
+    # Semantic tracing settings
+    semantic_tracing_enabled: bool = Field(
+        default=False,
+        description="Enable semantic tracing to JSON files",
+    )
+    semantic_trace_dir: str = Field(
+        default="traces/",
+        description="Directory for semantic trace JSON files",
+    )
+
     # Backend settings
     backend_type: str = Field(
         default="claude",

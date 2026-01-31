@@ -13,6 +13,7 @@ import httpx
 from claude_agent_sdk import create_sdk_mcp_server, tool
 
 from ..config import settings
+from ..observability.semantic import get_semantic_tracer
 from ..observability.telemetry import inject_context, traced_operation
 
 
@@ -112,51 +113,79 @@ async def query_agent(args: dict[str, Any]) -> dict[str, Any]:
             "is_error": True,
         }
 
-    # Trace the outgoing request
-    with traced_operation("query_agent", {"agent.url": agent_url}):
-        try:
-            # Inject trace context into headers
-            headers = {"Content-Type": "application/json"}
-            inject_context(headers)
+    # Semantic tracing for A2A message exchange
+    semantic_tracer = get_semantic_tracer()
 
-            async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
-                response = await client.post(
-                    f"{agent_url}/query",
-                    json={"query": query},
-                    headers=headers,
-                )
-                response.raise_for_status()
-                result = response.json()
+    # Extract source agent from URL pattern if possible
+    target_agent = urlparse(agent_url).netloc
 
+    with semantic_tracer.a2a_message(
+        source_agent="caller",
+        target_agent=target_agent,
+        query=query,
+    ) as sem_span:
+        # Trace the outgoing request
+        with traced_operation("query_agent", {"agent.url": agent_url}):
+            try:
+                # Inject trace context into headers
+                headers = {"Content-Type": "application/json"}
+                inject_context(headers)
+
+                async with httpx.AsyncClient(timeout=settings.http_timeout) as client:
+                    response = await client.post(
+                        f"{agent_url}/query",
+                        json={"query": query},
+                        headers=headers,
+                    )
+                    response.raise_for_status()
+                    result = response.json()
+
+                    response_text = result.get("response", "No response")
+
+                    # Record response on semantic span
+                    semantic_tracer.record_a2a_response(
+                        sem_span,
+                        response=response_text,
+                        status_code=response.status_code,
+                    )
+
+                    return {"content": [{"type": "text", "text": response_text}]}
+            except httpx.TimeoutException:
+                sem_span.status = "error"
+                sem_span.error_message = "Request timed out"
                 return {
                     "content": [
-                        {"type": "text", "text": result.get("response", "No response")}
-                    ]
+                        {
+                            "type": "text",
+                            "text": f"Error: Request to {agent_url} timed out",
+                        }
+                    ],
+                    "is_error": True,
                 }
-        except httpx.TimeoutException:
-            return {
-                "content": [
-                    {"type": "text", "text": f"Error: Request to {agent_url} timed out"}
-                ],
-                "is_error": True,
-            }
-        except httpx.HTTPStatusError as e:
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"Error: HTTP {e.response.status_code} from {agent_url}",
-                    }
-                ],
-                "is_error": True,
-            }
-        except Exception as e:
-            return {
-                "content": [
-                    {"type": "text", "text": f"Error querying {agent_url}: {str(e)}"}
-                ],
-                "is_error": True,
-            }
+            except httpx.HTTPStatusError as e:
+                sem_span.status = "error"
+                sem_span.error_message = f"HTTP {e.response.status_code}"
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"Error: HTTP {e.response.status_code} from {agent_url}",
+                        }
+                    ],
+                    "is_error": True,
+                }
+            except Exception as e:
+                sem_span.status = "error"
+                sem_span.error_message = str(e)
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"Error querying {agent_url}: {str(e)}",
+                        }
+                    ],
+                    "is_error": True,
+                }
 
 
 @tool(

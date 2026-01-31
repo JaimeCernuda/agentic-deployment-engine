@@ -23,6 +23,7 @@ from ..backends import AgentBackend, BackendConfig
 from ..config import settings
 from ..observability import (
     extract_context,
+    get_semantic_tracer,
     instrument_fastapi,
     setup_telemetry,
     shutdown_telemetry,
@@ -308,34 +309,46 @@ class BaseA2AAgent(ABC):
             # Get or create session for multi-turn context
             session = self.session_manager.get_or_create_session(body.session_id)
 
-            # Create child span for this query with session tracking
-            with traced_operation(
-                "handle_query",
-                {
-                    "agent.name": self.name,
-                    "query.length": str(len(body.query)),
-                    "session.id": session.session_id,
-                    "session.message_count": str(len(session.messages)),
-                },
-            ):
-                # Add user message to session history
-                session.add_message("user", body.query)
+            # Semantic tracing - agent level query handling
+            semantic_tracer = get_semantic_tracer()
+            with semantic_tracer.query_handling(
+                agent_name=self.name,
+                query=body.query,
+                session_id=session.session_id,
+                history_length=len(session.messages),
+            ) as sem_span:
+                # Create child span for this query with session tracking
+                with traced_operation(
+                    "handle_query",
+                    {
+                        "agent.name": self.name,
+                        "query.length": str(len(body.query)),
+                        "session.id": session.session_id,
+                        "session.message_count": str(len(session.messages)),
+                    },
+                ):
+                    # Add user message to session history
+                    session.add_message("user", body.query)
 
-                # Get conversation history for context
-                history = session.get_history_for_prompt(
-                    max_messages=settings.max_history_messages
-                )
+                    # Get conversation history for context
+                    history = session.get_history_for_prompt(
+                        max_messages=settings.max_history_messages
+                    )
 
-                # Handle query with session context
-                response = await self._handle_query(body.query, history)
+                    # Handle query with session context
+                    response = await self._handle_query(body.query, history)
 
-                # Add assistant response to session history
-                session.add_message("assistant", response)
+                    # Add assistant response to session history
+                    session.add_message("assistant", response)
 
-                return QueryResponse(
-                    response=response,
-                    session_id=session.session_id,
-                )
+                    # Record response details on semantic span
+                    sem_span.attributes["response.length"] = len(response)
+                    sem_span.attributes["response.preview"] = response[:200]
+
+                    return QueryResponse(
+                        response=response,
+                        session_id=session.session_id,
+                    )
 
     async def _initialize_pool(self) -> None:
         """Initialize the client pool with pre-connected clients.

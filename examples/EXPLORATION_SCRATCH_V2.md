@@ -798,3 +798,192 @@ Note: #3 (client pool size) was already implemented via AGENT_CLIENT_POOL_SIZE
 5. **Documentation** - Full CLI reference added
 6. **SSH deployment** - 4 critical bugs fixed
 7. **Cleanup command** - Fully implemented with options
+
+---
+
+# Iteration 18: Fix GitHub CI Lint Errors
+**Time:** 2026-01-30
+**Goal:** Fix 4 ruff lint errors blocking CI
+
+### Commands Run
+```bash
+uv sync --all-extras
+uv run ruff check src/ examples/ tests/
+# Found 2 errors:
+# - src/jobs/monitor.py:12 - I001: Imports unsorted (Callable from collections.abc)
+# - tests/unit/test_loader.py:13 - I001: Imports unsorted
+
+uv run ruff check --fix src/ examples/ tests/ && uv run ruff format src/ examples/ tests/
+# Fixed 2 errors, reformatted 6 files
+```
+
+### Changes Made
+1. `src/agents/base.py` - Removed unused `add_span_attribute` import
+2. `src/jobs/cli.py` - Used `unhealthy_count` for health summary display (was assigned but unused)
+3. `src/jobs/monitor.py` - Import `Callable` from `collections.abc` not `typing`, sorted imports
+4. `tests/unit/test_loader.py` - Sorted imports
+
+### Commits
+- `dbd0fc2` - fix: resolve ruff lint errors for CI
+
+### CI Status
+Pushed to main - CI passed after second formatting commit
+
+---
+
+# Iteration 19: A2A Protocol Research
+**Time:** 2026-01-30
+**Goal:** Understand official A2A protocol and compare to our implementation
+
+### A2A Protocol Key Features (from a2a.proto)
+
+1. **Core Operations:**
+   - `SendMessage` - Send message to agent, returns Task or Message
+   - `SendStreamingMessage` - Streaming version of SendMessage
+   - `GetTask` - Get current state of a task
+   - `ListTasks` - List tasks with filtering/pagination
+   - `CancelTask` - Cancel a running task
+   - `SubscribeToTask` - Subscribe to task updates (SSE streaming)
+
+2. **Task Model:**
+   - `context_id` - Groups related tasks/messages (conversation context)
+   - `task_id` - Unique task identifier
+   - `TaskState` - SUBMITTED, WORKING, COMPLETED, FAILED, CANCELED, INPUT_REQUIRED, REJECTED, AUTH_REQUIRED
+   - `history` - Message history within task
+   - `artifacts` - Task outputs
+
+3. **Protocol Bindings:**
+   - `JSONRPC` - JSON-RPC 2.0 binding
+   - `GRPC` - Native gRPC binding
+   - `HTTP+JSON` - RESTful HTTP/JSON binding
+
+4. **Capabilities:**
+   - `streaming` - Supports streaming responses
+   - `push_notifications` - Supports async task updates
+   - `extended_agent_card` - Supports authenticated agent discovery
+
+### Comparison to Our Implementation
+
+| Feature | A2A Spec | Our Implementation |
+|---------|----------|-------------------|
+| SendMessage | POST /message:send | POST /query |
+| GetTask | GET /tasks/{id} | Not implemented |
+| ListTasks | GET /tasks | Not implemented |
+| CancelTask | POST /tasks/{id}:cancel | Not implemented |
+| SubscribeToTask | GET /tasks/{id}:subscribe (SSE) | Not implemented |
+| context_id | Built-in | SessionManager (custom) |
+| task_id | Built-in | Not implemented |
+| Streaming | SSE/gRPC | Not implemented |
+| Push notifications | Webhook callbacks | Not implemented |
+| AgentCard | /.well-known/agent-configuration | Implemented ✓ |
+
+### Key Gaps Identified
+
+1. **Task Model Missing**: We don't have a proper task model - queries are fire-and-forget
+2. **No Task State Machine**: No WORKING/COMPLETED/FAILED states
+3. **No Streaming**: No SSE or gRPC streaming support
+4. **No Push Notifications**: No webhook callbacks for async updates
+5. **Custom Session vs context_id**: Our SessionManager is custom, A2A has built-in context_id
+
+### Recommendations
+
+1. **Low Priority**: Task model is overkill for simple query/response agents
+2. **Medium Priority**: Streaming would be nice for long-running queries
+3. **Our SessionManager is VALID**: It provides context_id functionality, just named differently
+4. **Protocol binding**: We use HTTP+JSON, which is spec-compliant
+
+### Verdict
+Our implementation is a **simplified A2A subset** focused on query/response patterns.
+Full A2A compliance would require significant additions (task model, streaming, push).
+SessionManager is NOT redundant - it provides the context_id functionality.
+
+---
+
+# Iteration 20: Semantic Observability Implementation
+**Time:** 2026-01-31
+**Goal:** Implement deep semantic observability at framework, A2A, and agent levels
+
+### Problem Statement
+The user wanted observability into:
+1. **Framework level**: What's happening during deployment/job lifecycle
+2. **A2A level**: What messages are exchanged, what context, what sessions
+3. **Agent level**: What tools are used, what inputs/outputs, what LLM messages
+
+And it needed to export to JSON files for analysis without requiring Docker/Jaeger.
+
+### Implementation
+
+Created `src/observability/semantic.py` with:
+- `SemanticTracer` class for structured tracing
+- `JSONFileExporter` that writes traces to JSON files
+- Three levels of spans:
+  - `job_deployment()` - Framework level: job_id, agents, topology
+  - `a2a_message()` - A2A level: source/target agents, query, context_id, session_id
+  - `query_handling()` - Agent level: agent_name, query, session, history
+  - `tool_call()` - Agent level: tool_name, input, result
+
+### Configuration
+```bash
+# Enable via environment
+AGENT_SEMANTIC_TRACING_ENABLED=true
+AGENT_SEMANTIC_TRACE_DIR=traces/
+
+# Or via settings in config.py
+semantic_tracing_enabled: bool = False
+semantic_trace_dir: str = "traces/"
+```
+
+### Sample Output (traces/trace_*.json)
+```json
+{
+  "spans": [
+    {
+      "level": "agent",
+      "category": "tool_call",
+      "name": "tool:get_weather",
+      "attributes": {
+        "tool.name": "get_weather",
+        "tool.input": "{\"city\": \"Tokyo\"}",
+        "tool.result": "{\"temp\": 22.5}",
+        "tool.success": true
+      }
+    },
+    {
+      "level": "agent",
+      "category": "query_handling",
+      "name": "query:test-agent",
+      "attributes": {
+        "query.text": "What is the weather in Tokyo?",
+        "query.session_id": "session-123",
+        "query.history_length": 5
+      }
+    }
+  ]
+}
+```
+
+### Files Modified/Created
+- `src/observability/semantic.py` - NEW: SemanticTracer with JSON export
+- `src/observability/__init__.py` - Added exports
+- `src/config.py` - Added semantic tracing settings
+- `src/agents/base.py` - Added semantic tracing to query handler
+- `src/agents/transport.py` - Added semantic tracing to A2A messages
+- `src/jobs/deployer.py` - Propagates tracing settings to child processes
+
+### Testing
+```bash
+uv run python -c "
+import os
+os.environ['AGENT_SEMANTIC_TRACING_ENABLED'] = 'true'
+from src.observability.semantic import get_semantic_tracer, reset_semantic_tracer
+reset_semantic_tracer()
+tracer = get_semantic_tracer()
+tracer.start_trace('test')
+with tracer.tool_call('my_tool', {'input': 'value'}):
+    pass
+print(tracer.get_trace_file())
+"
+```
+
+### Verdict
+Semantic observability IMPLEMENTED - traces all three levels to JSON files

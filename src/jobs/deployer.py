@@ -153,6 +153,16 @@ class LocalRunner(AgentRunner):
         if agent.deployment.environment:
             process_env.update(agent.deployment.environment)
 
+        # Propagate semantic tracing settings if enabled in parent process
+        from ..config import settings
+
+        if settings.semantic_tracing_enabled:
+            process_env["AGENT_SEMANTIC_TRACING_ENABLED"] = "true"
+            # Use job-specific trace directory for log correlation
+            if job_id:
+                trace_dir = str(Path(settings.semantic_trace_dir) / job_id)
+                process_env["AGENT_SEMANTIC_TRACE_DIR"] = trace_dir
+
         # Setup log files - organize by job if available
         if job_id:
             job_log_dir = self.log_dir / job_id

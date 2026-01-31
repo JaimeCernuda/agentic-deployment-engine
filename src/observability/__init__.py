@@ -1,6 +1,7 @@
-"""Observability: logging and telemetry."""
+"""Observability: logging, telemetry, and semantic tracing."""
 
 from .logging import get_logger, setup_logging
+from .semantic import SemanticTracer, get_semantic_tracer
 from .telemetry import (
     add_span_attribute,
     extract_context,
@@ -25,4 +26,7 @@ __all__ = [
     "setup_telemetry",
     "shutdown_telemetry",
     "traced_operation",
+    # Semantic Tracing
+    "SemanticTracer",
+    "get_semantic_tracer",
 ]
