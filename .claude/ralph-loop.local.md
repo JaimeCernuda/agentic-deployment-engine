@@ -19,7 +19,23 @@ started_at: "2026-01-31T06:32:48Z"
 - ✅ **Agent lifecycle events** - agent:start spans with events
 - ✅ SDK hooks (PreToolUse/PostToolUse) capture tool calls
 - ✅ Agent name propagation via contextvars
-- ✅ Gemini/CrewAI backends instrumented
+- ⚠️ Gemini/CrewAI backends - CODE instrumented, PARTIALLY tested:
+  - CrewAI/Ollama: TESTED - traces generated but model failed tool parsing
+  - Gemini CLI: NOT TESTED - code exists but no real test
+
+### Backend Verification Status (Honest Assessment)
+
+| Backend | Code Instrumented | Actually Tested | Traces Working |
+|---------|------------------|-----------------|----------------|
+| Claude SDK | ✅ Yes | ✅ Yes (many jobs) | ✅ Yes |
+| CrewAI/Ollama | ✅ Yes | ✅ Yes (mixed-providers) | ⚠️ Partial (model issues) |
+| Gemini CLI | ✅ Yes | ❌ NO | ❓ Unknown |
+
+### External MCP Status (NOT TESTED)
+- **stdio MCP servers**: NOT configured in any agent, NOT tested
+- **Remote MCP servers**: NOT configured in any agent, NOT tested
+- SDK hooks SHOULD capture external MCP calls (same code path)
+- Need to create agent with external MCP server to verify
 
 ### Real Usage Testing - Iteration 8
 
@@ -127,14 +143,22 @@ started_at: "2026-01-31T06:32:48Z"
 2. LLM span durations are 0ms (captured on receive, not inference timing)
 3. llm.content: null on some spans (empty content blocks between tool calls)
 
-Open Questions (from user) - Updated Iteration 8:
-- Can we detect external MCP calls (stdio/remote)? - NOT YET (requires MCP protocol hooks)
-- Can we detect compactions? - NOT YET (internal to Claude SDK)
+Open Questions (from user) - HONEST STATUS:
+- Can we detect external MCP calls (stdio/remote)?
+  - ❌ NOT TESTED - No agents configured with external MCP servers
+  - SDK hooks SHOULD capture them (same PreToolUse/PostToolUse path)
+  - NEED: Create test agent with stdio MCP server to verify
+- Can we detect compactions?
+  - ❌ NOT POSSIBLE - Compaction is internal to Claude's context management
+  - Would need Claude SDK to expose this (it doesn't)
 - [x] Can we see multi-turn internal before responding? ✅ YES
   - Traces show: user→assistant planning→tool calls→null responses→assistant continuation→more tools→final response
   - Null content between tool calls is Claude SDK behavior (empty messages during tool processing)
 - [x] Full flow: A2A→LLM→tool→fail→retry→success→A2A return ✅ YES
-  - Verified with code-review-pipeline: coordinator→security(timeout)→retry→security(success) 
+  - Verified with code-review-pipeline: coordinator→security(timeout)→retry→security(success)
+- Token counts/usage? ❌ NOT CAPTURED
+  - SDK doesn't expose token counts in hooks
+  - Would need API-level tracing or Claude SDK changes 
 
 **Phase 2: Build Dynamic Agent Registry**
 - Create global registry service with registration/discovery
