@@ -57,10 +57,15 @@ started_at: "2026-01-31T06:32:48Z"
 - [x] Deploy stock-workflow, query 3 times, check trace structure ✅
 - [x] Kill an agent mid-request, verify error trace captured ✅ (Searcher killed, error captured)
 - [x] Timeout scenario, verify timeout trace captured ✅ (30s timeout, "Request timed out")
-- [ ] Multi-turn conversation, verify session context in traces
+- [x] Multi-turn conversation, verify session context in traces ✅ (Iteration 11)
+  - Query 1: history_length=0, session_id captured
+  - Query 2: history_length=2, same session_id, context recalled
+  - Both queries share same trace_id in controller trace
 - [x] A2A chain (controller→searcher), verify full chain traced ✅
 - [x] Failed tool call, verify error semantics ✅ (SSRF protection errors captured)
-- [ ] Empty response handling, check trace
+- [x] Empty response handling, check trace ✅
+  - Empty content blocks between tool calls traced as llm.content: null
+  - This is SDK behavior during tool processing, not an error
 
 **Trace Quality Checklist (per trace) - Updated Iteration 8:**
 - [x] User query clearly visible in trace ✅ (llm:user span with user-input model)
