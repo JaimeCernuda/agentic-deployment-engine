@@ -1064,3 +1064,32 @@ Updated tests to mock `agent._backend.query()` instead of the pool.
 
 ### Commits
 - `127036f` - fix: update tests to mock backend instead of client pool
+
+---
+
+# Iteration 23: Add Semantic Tests for Coverage
+**Time:** 2026-01-31
+**Goal:** Increase test coverage to pass CI threshold
+
+### Problem
+Coverage dropped to 63.78% (below 65% threshold) after adding semantic.py
+
+### Solution
+Added comprehensive unit tests for semantic observability:
+- SpanData creation and error states
+- SpanContext thread-local storage
+- JSONFileExporter file operations
+- SemanticTracer span creation and export
+- Global tracer getter
+
+### Results
+- 20 new tests added
+- semantic.py coverage: 46% → 81%
+- All tests passing
+
+### Commits
+- `0101ac6` - test: add unit tests for semantic observability module
+- `c075609` - fix: remove unused imports and variables in semantic tests
+
+### CI Status
+**PASSED** - All tests passing, coverage >65%
