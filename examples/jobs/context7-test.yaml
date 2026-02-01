@@ -1,0 +1,37 @@
+# Context7 External MCP Test
+# Tests REAL external MCP server integration (not mock data)
+# Uses npx @upstash/context7-mcp for live documentation lookups
+
+job:
+  name: context7-test
+  version: 1.0.0
+  description: Test job for real external Context7 MCP server
+  tags:
+    - stdio
+    - mcp
+    - context7
+    - external
+    - real
+
+agents:
+  # Context7 agent using real external MCP server
+  - id: context7
+    type: Context7Agent
+    module: examples.agents.context7_agent
+    config:
+      port: 9004
+    deployment:
+      target: localhost
+
+topology:
+  type: pipeline
+  stages:
+    - context7
+
+deployment:
+  strategy: sequential
+  timeout: 60
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3

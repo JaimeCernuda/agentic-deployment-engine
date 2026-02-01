@@ -19,8 +19,9 @@ from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 from fastapi import Depends, FastAPI, Request
 from pydantic import BaseModel
 
-from ..backends import AgentBackend, BackendConfig
+from ..backends.base import AgentBackend, BackendConfig
 from ..config import settings
+from ..core.container import container
 from ..observability import (
     extract_context,
     get_semantic_tracer,
@@ -32,46 +33,6 @@ from ..observability import (
 from ..security import PermissionPreset, filter_allowed_tools, verify_api_key
 from .registry import AgentRegistry
 from .sessions import SessionManager
-
-
-def create_backend(config: BackendConfig) -> AgentBackend:
-    """Create an agent backend based on configuration.
-
-    Factory function that returns the appropriate backend based on
-    the AGENT_BACKEND_TYPE environment variable.
-
-    Args:
-        config: Backend configuration
-
-    Returns:
-        An initialized AgentBackend instance
-
-    Supported backends:
-        - claude: Claude Agent SDK (default)
-        - gemini: Gemini CLI
-        - crewai: CrewAI with Ollama
-    """
-    backend_type = settings.backend_type.lower()
-
-    if backend_type == "gemini":
-        from ..backends.gemini_cli import GeminiCLIBackend
-
-        return GeminiCLIBackend(config)
-
-    elif backend_type == "crewai":
-        from ..backends.crewai import CrewAIBackend
-
-        return CrewAIBackend(
-            config,
-            ollama_model=settings.ollama_model,
-            ollama_base_url=settings.ollama_base_url,
-        )
-
-    else:
-        # Default: Claude SDK
-        from ..backends.claude_sdk import ClaudeSDKBackend
-
-        return ClaudeSDKBackend(config)
 
 
 class QueryRequest(BaseModel):
@@ -105,6 +66,7 @@ class BaseA2AAgent(ABC):
         description: str,
         port: int,
         sdk_mcp_server=None,
+        mcp_servers: dict[str, Any] | None = None,
         system_prompt: str | None = None,
         connected_agents: list[str] | None = None,
         permission_preset: PermissionPreset = PermissionPreset.FULL_ACCESS,
@@ -176,11 +138,14 @@ class BaseA2AAgent(ABC):
         self.logger.info(f"Initializing {name} on port {port}")
         self.logger.info(f"Log file: {log_file}")
 
-        # Configure claude-code-sdk with SDK MCP server
-        mcp_servers = {}
+        # Configure claude-code-sdk with MCP servers
+        # Start with any externally provided MCP servers (stdio, sse, etc.)
+        all_mcp_servers = dict(mcp_servers) if mcp_servers else {}
+
+        # Add in-process SDK MCP server if provided
         if sdk_mcp_server:
             server_key = self.name.lower().replace(" ", "_")
-            mcp_servers[server_key] = sdk_mcp_server
+            all_mcp_servers[server_key] = sdk_mcp_server
             self.logger.debug(f"SDK MCP server configured with key: {server_key}")
             self.logger.debug(
                 f"SDK server type: {sdk_mcp_server.get('type') if isinstance(sdk_mcp_server, dict) else type(sdk_mcp_server)}"
@@ -191,6 +156,11 @@ class BaseA2AAgent(ABC):
                 server_instance = sdk_mcp_server["instance"]
                 if hasattr(server_instance, "list_tools"):
                     self.logger.debug("SDK MCP server has list_tools method")
+
+        # Log external MCP servers
+        for key, config in all_mcp_servers.items():
+            if isinstance(config, dict) and config.get("type") != "sdk":
+                self.logger.debug(f"External MCP server configured: {key} (type: {config.get('type')})")
 
         allowed_tools = self._get_allowed_tools()
         # Permission presets control access to external tools (Read, Write, Bash, etc.)
@@ -223,7 +193,7 @@ class BaseA2AAgent(ABC):
         # This allows agents to use their tools without interactive user approval
         # setting_sources=[] prevents external settings from overriding permission_mode
         self.claude_options = ClaudeAgentOptions(
-            mcp_servers=mcp_servers,
+            mcp_servers=all_mcp_servers,
             allowed_tools=allowed_tools,
             system_prompt=self._active_system_prompt,
             permission_mode="bypassPermissions",
@@ -240,7 +210,7 @@ class BaseA2AAgent(ABC):
         self._pool_lock = asyncio.Lock()
         self.claude_client: ClaudeSDKClient | None = None  # Backwards compat
 
-        # Backend abstraction (optional - if not provided, use factory)
+        # Backend abstraction (optional - if not provided, use DI container)
         if backend:
             self._backend = backend
         else:
@@ -250,7 +220,9 @@ class BaseA2AAgent(ABC):
                 allowed_tools=allowed_tools,
                 mcp_servers=mcp_servers,
             )
-            self._backend = create_backend(backend_config)
+            self._backend = container.backend_factory(
+                settings.backend_type, backend_config
+            )
             self.logger.info(f"Using backend: {self._backend.name}")
 
         # Create A2A endpoints
@@ -517,6 +489,17 @@ Always be concise and professional in your responses."""
                 permission_mode="bypassPermissions",
                 setting_sources=[],
             )
+
+            # Update backend config with new system prompt
+            # The backend's initialize() is called lazily on first query,
+            # so updating the config here ensures it uses discovered agent URLs
+            if hasattr(self._backend, "config") and hasattr(
+                self._backend.config, "system_prompt"
+            ):
+                self._backend.config.system_prompt = self._active_system_prompt
+                self.logger.debug(
+                    "Backend config updated with discovered agents system prompt"
+                )
 
         self.logger.debug(
             f"Updated system prompt ({len(self._active_system_prompt)} chars)"

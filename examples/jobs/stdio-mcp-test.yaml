@@ -1,0 +1,36 @@
+# Stdio MCP Server Test
+# Tests external MCP server integration via stdio transport
+# Uses FastMCP 2.0 with ASTRONOMY data (not weather!) to prove external MCP works
+
+job:
+  name: stdio-mcp-test
+  version: 1.0.0
+  description: Test job for external stdio MCP server (FastMCP 2.0)
+  tags:
+    - stdio
+    - mcp
+    - fastmcp
+    - test
+
+agents:
+  # Astronomy agent using FastMCP 2.0 external stdio MCP server
+  - id: astronomy-stdio
+    type: AstronomyStdioAgent
+    module: examples.agents.astronomy_stdio_agent
+    config:
+      port: 9003
+    deployment:
+      target: localhost
+
+topology:
+  type: pipeline
+  stages:
+    - astronomy-stdio
+
+deployment:
+  strategy: sequential
+  timeout: 30
+  health_check:
+    enabled: true
+    interval: 5
+    retries: 3
