@@ -165,7 +165,9 @@ class BaseA2AAgent(ABC):
         # Log external MCP servers
         for key, config in all_mcp_servers.items():
             if isinstance(config, dict) and config.get("type") != "sdk":
-                self.logger.debug(f"External MCP server configured: {key} (type: {config.get('type')})")
+                self.logger.debug(
+                    f"External MCP server configured: {key} (type: {config.get('type')})"
+                )
 
         allowed_tools = self._get_allowed_tools()
         # Permission presets control access to external tools (Read, Write, Bash, etc.)
@@ -223,7 +225,7 @@ class BaseA2AAgent(ABC):
                 name=name,
                 system_prompt=self._active_system_prompt,
                 allowed_tools=allowed_tools,
-                mcp_servers=mcp_servers,
+                mcp_servers=all_mcp_servers,  # Use all_mcp_servers which includes SDK MCP server
             )
             self._backend = container.backend_factory(
                 settings.backend_type, backend_config
@@ -571,10 +573,12 @@ Always be concise and professional in your responses."""
                     f"{self.registry_url}/agents/{self._agent_id}"
                 )
                 if response.status_code == 200:
-                    self.logger.info(f"Deregistered from registry")
+                    self.logger.info("Deregistered from registry")
                     return True
                 else:
-                    self.logger.debug(f"Registry deregistration: {response.status_code}")
+                    self.logger.debug(
+                        f"Registry deregistration: {response.status_code}"
+                    )
                     return False
         except Exception as e:
             self.logger.debug(f"Could not deregister from registry: {e}")
