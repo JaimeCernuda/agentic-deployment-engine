@@ -157,7 +157,12 @@ class Container:
         elif backend_type == "crewai":
             from ..backends.crewai import CrewAIBackend
 
-            return CrewAIBackend(config)
+            agent_settings = self.agent_settings()
+            return CrewAIBackend(
+                config,
+                ollama_model=agent_settings.ollama_model,
+                ollama_base_url=agent_settings.ollama_base_url,
+            )
         elif backend_type == "gemini":
             from ..backends.gemini_cli import GeminiCLIBackend
 

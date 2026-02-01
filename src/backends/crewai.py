@@ -3,6 +3,8 @@
 Uses CrewAI framework with Ollama as the LLM provider for local inference.
 CrewAI enables role-based agent workflows with task delegation.
 Uses CrewAI callbacks for internal observability of execution steps.
+
+Bridges SDK MCP tools to CrewAI-compatible tools for tool calling support.
 """
 
 import asyncio
@@ -15,6 +17,161 @@ from ..observability.semantic import get_semantic_tracer
 from .base import AgentBackend, BackendConfig, QueryResult
 
 logger = logging.getLogger(__name__)
+
+
+def _create_crewai_tool_from_mcp(
+    tool_name: str,
+    tool_description: str,
+    server_instance: Any,
+    original_tool_name: str,
+) -> Any:
+    """Create a CrewAI-compatible tool wrapper for an MCP tool.
+
+    Args:
+        tool_name: Full tool name (mcp__server__tool).
+        tool_description: Description of what the tool does.
+        server_instance: The MCP Server instance.
+        original_tool_name: Original tool name for MCP call.
+
+    Returns:
+        A CrewAI Tool object that bridges to the MCP tool.
+    """
+    try:
+        from crewai.tools import BaseTool
+    except ImportError:
+        logger.warning("CrewAI tools module not available, skipping tool bridging")
+        return None
+
+    # Import MCP types for calling tools
+    try:
+        from mcp.types import CallToolRequest, CallToolRequestParams
+    except ImportError:
+        logger.warning("MCP types not available, skipping tool bridging")
+        return None
+
+    class MCPToolWrapper(BaseTool):
+        """Wrapper that bridges an MCP tool to CrewAI."""
+
+        name: str = tool_name
+        description: str = tool_description
+
+        def _run(self, **kwargs: Any) -> str:
+            """Execute the MCP tool synchronously."""
+            try:
+                # Get the CallToolRequest handler from the server
+                handler = server_instance.request_handlers.get(CallToolRequest)
+                if not handler:
+                    return f"Error: No handler for tool {original_tool_name}"
+
+                # Create the MCP call request
+                params = CallToolRequestParams(
+                    name=original_tool_name,
+                    arguments=kwargs,
+                )
+                req = CallToolRequest(params=params)
+
+                # Run the async handler in a new event loop
+                loop = asyncio.new_event_loop()
+                try:
+                    result = loop.run_until_complete(handler(req))
+                finally:
+                    loop.close()
+
+                # Extract text content from MCP result
+                if hasattr(result, "root") and hasattr(result.root, "content"):
+                    contents = result.root.content
+                    if isinstance(contents, list):
+                        texts = []
+                        for c in contents:
+                            if hasattr(c, "text"):
+                                texts.append(c.text)
+                            else:
+                                texts.append(str(c))
+                        return "\n".join(texts)
+                return str(result)
+            except Exception as e:
+                logger.error(f"MCP tool {tool_name} failed: {e}")
+                return f"Error calling {tool_name}: {e}"
+
+    return MCPToolWrapper()
+
+
+async def _extract_sdk_tools_async(mcp_servers: dict[str, Any]) -> list[Any]:
+    """Extract SDK MCP tools and create CrewAI wrappers.
+
+    Uses the MCP ListToolsRequest handler to enumerate tools and creates
+    wrappers that call tools via the CallToolRequest handler.
+
+    Args:
+        mcp_servers: MCP server configurations from BackendConfig.
+
+    Returns:
+        List of CrewAI-compatible tool wrappers.
+    """
+    crewai_tools = []
+
+    # Import MCP types for listing tools
+    try:
+        from mcp.types import ListToolsRequest
+    except ImportError:
+        logger.warning("MCP types not available, cannot extract SDK tools")
+        return []
+
+    for server_key, server_config in mcp_servers.items():
+        if not isinstance(server_config, dict):
+            continue
+
+        server_type = server_config.get("type")
+        if server_type != "sdk":
+            continue
+
+        instance = server_config.get("instance")
+        if not instance:
+            continue
+
+        # Check if this instance has request handlers (MCP Server)
+        if not hasattr(instance, "request_handlers"):
+            continue
+
+        # Get the ListToolsRequest handler
+        list_handler = instance.request_handlers.get(ListToolsRequest)
+        if not list_handler:
+            logger.debug(f"No ListToolsRequest handler in SDK server '{server_key}'")
+            continue
+
+        try:
+            # Call the list tools handler (async)
+            req = ListToolsRequest()
+            result = await list_handler(req)
+
+            # Extract tools from the result
+            if hasattr(result, "root") and hasattr(result.root, "tools"):
+                tools = result.root.tools
+                logger.debug(f"Found {len(tools)} tools in SDK server '{server_key}'")
+
+                for tool in tools:
+                    tool_name = getattr(tool, "name", None)
+                    tool_desc = getattr(tool, "description", "") or f"Call {tool_name}"
+
+                    if not tool_name:
+                        continue
+
+                    # Create CrewAI wrapper that calls via MCP handlers
+                    wrapper = _create_crewai_tool_from_mcp(
+                        tool_name=f"mcp__{server_key}__{tool_name}",
+                        tool_description=tool_desc,
+                        server_instance=instance,
+                        original_tool_name=tool_name,
+                    )
+
+                    if wrapper:
+                        crewai_tools.append(wrapper)
+                        logger.info(f"Bridged MCP tool: {tool_name} -> CrewAI")
+
+        except Exception as e:
+            logger.error(f"Failed to extract tools from SDK server '{server_key}': {e}")
+
+    return crewai_tools
 
 
 def _create_step_callback(model_name: str) -> Any:
@@ -212,7 +369,14 @@ class CrewAIBackend(AgentBackend):
             base_url=self.ollama_base_url,
         )
 
-        # Create CrewAI agent
+        # Bridge SDK MCP tools to CrewAI tools (async)
+        crewai_tools = await _extract_sdk_tools_async(self.config.mcp_servers)
+        if crewai_tools:
+            logger.info(f"Bridged {len(crewai_tools)} SDK tools to CrewAI")
+        else:
+            logger.debug("No SDK tools found to bridge")
+
+        # Create CrewAI agent with bridged tools
         self._agent = Agent(
             role=self.config.name,
             goal=self.config.system_prompt or "Help the user with their requests",
@@ -220,10 +384,12 @@ class CrewAIBackend(AgentBackend):
             llm=self._llm,
             verbose=False,
             allow_delegation=False,
+            tools=crewai_tools if crewai_tools else None,
         )
 
         logger.info(
             f"CrewAI backend initialized with Ollama model: {self.ollama_model}"
+            + (f" ({len(crewai_tools)} tools)" if crewai_tools else "")
         )
         self._initialized = True
 
@@ -307,10 +473,15 @@ class CrewAIBackend(AgentBackend):
                     {"response_length": len(response_text)},
                 )
 
+            # Count tool uses from the result if available
+            tools_used = 0
+            if hasattr(result, "tools_used"):
+                tools_used = len(result.tools_used)
+
             return QueryResult(
                 response=response_text,
                 messages_count=1,
-                tools_used=0,
+                tools_used=tools_used,
                 metadata={"context": context} if context else {},
             )
 
