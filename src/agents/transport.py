@@ -263,6 +263,125 @@ async def discover_agent(args: dict[str, Any]) -> dict[str, Any]:
             }
 
 
+@tool(
+    "find_agents",
+    "Find agents in the dynamic registry by skill, tag, or name",
+    {"registry_url": str, "skill": str, "tag": str, "name": str},
+)
+async def find_agents(args: dict[str, Any]) -> dict[str, Any]:
+    """Find agents in the dynamic registry service.
+
+    Args:
+        args: Dictionary containing:
+            - registry_url: URL of the registry service (e.g., "http://localhost:8500")
+            - skill: (optional) Search by skill/capability
+            - tag: (optional) Search by tag
+            - name: (optional) Search by agent name
+
+    Returns:
+        Dict with content array containing matching agents
+    """
+    import os
+
+    registry_url = args.get("registry_url") or os.environ.get(
+        "AGENT_REGISTRY_URL", "http://localhost:8500"
+    )
+    skill = args.get("skill")
+    tag = args.get("tag")
+    name = args.get("name")
+
+    if not registry_url:
+        return {
+            "content": [
+                {"type": "text", "text": "Error: registry_url is required or set AGENT_REGISTRY_URL"}
+            ],
+            "is_error": True,
+        }
+
+    # SSRF Protection
+    if not is_safe_url(registry_url):
+        return {
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Error: Invalid or blocked registry URL. Only allowed hosts/ports permitted.",
+                }
+            ],
+            "is_error": True,
+        }
+
+    # Build query params
+    params: dict[str, str] = {"healthy_only": "true"}
+    if skill:
+        params["skill"] = skill
+    if tag:
+        params["tag"] = tag
+    if name:
+        params["name"] = name
+
+    with traced_operation("find_agents", {"registry.url": registry_url, **params}):
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(f"{registry_url}/agents/search", params=params)
+                response.raise_for_status()
+                agents = response.json()
+
+                if not agents:
+                    search_desc = []
+                    if skill:
+                        search_desc.append(f"skill='{skill}'")
+                    if tag:
+                        search_desc.append(f"tag='{tag}'")
+                    if name:
+                        search_desc.append(f"name='{name}'")
+                    return {
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": f"No agents found matching: {', '.join(search_desc) or 'any criteria'}",
+                            }
+                        ]
+                    }
+
+                # Format results
+                result_lines = [f"Found {len(agents)} agent(s):\n"]
+                for agent in agents:
+                    agent_name = agent.get("name", "Unknown")
+                    agent_url = agent.get("url", "")
+                    description = agent.get("description", "")
+                    skills = agent.get("skills", [])
+                    health = agent.get("health_status", "unknown")
+
+                    result_lines.append(f"**{agent_name}** ({health})")
+                    result_lines.append(f"  URL: {agent_url}")
+                    if description:
+                        result_lines.append(f"  Description: {description}")
+                    if skills:
+                        skill_names = [s.get("name", s.get("id", "?")) for s in skills]
+                        result_lines.append(f"  Skills: {', '.join(skill_names)}")
+                    result_lines.append("")
+
+                return {"content": [{"type": "text", "text": "\n".join(result_lines)}]}
+
+        except httpx.HTTPStatusError as e:
+            return {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": f"Error: HTTP {e.response.status_code} from registry",
+                    }
+                ],
+                "is_error": True,
+            }
+        except Exception as e:
+            return {
+                "content": [
+                    {"type": "text", "text": f"Error querying registry: {str(e)}"}
+                ],
+                "is_error": True,
+            }
+
+
 def create_a2a_transport_server(name: str | None = None):
     """Create SDK MCP server with A2A transport tools.
 
@@ -277,5 +396,5 @@ def create_a2a_transport_server(name: str | None = None):
     """
     server_name = name or "a2a_transport"
     return create_sdk_mcp_server(
-        name=server_name, version="1.0.0", tools=[query_agent, discover_agent]
+        name=server_name, version="1.0.0", tools=[query_agent, discover_agent, find_agents]
     )

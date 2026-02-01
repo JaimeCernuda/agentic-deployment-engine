@@ -73,6 +73,7 @@ class BaseA2AAgent(ABC):
         custom_permission_rules: list[str] | None = None,
         host: str = "localhost",
         backend: AgentBackend | None = None,
+        registry_url: str | None = None,
     ):
         self.name = name
         self.description = description
@@ -82,6 +83,10 @@ class BaseA2AAgent(ABC):
         self.agent_registry = AgentRegistry() if connected_agents else None
         self.permission_preset = permission_preset
         self.custom_permission_rules = custom_permission_rules
+
+        # Dynamic registry for self-registration
+        self.registry_url = registry_url or os.environ.get("AGENT_REGISTRY_URL")
+        self._agent_id = self.name.lower().replace(" ", "_")
 
         # Session manager for multi-turn conversations
         self.session_manager = SessionManager(
@@ -505,6 +510,76 @@ Always be concise and professional in your responses."""
             f"Updated system prompt ({len(self._active_system_prompt)} chars)"
         )
 
+    async def _register_with_registry(self) -> bool:
+        """Register this agent with the dynamic registry service.
+
+        Returns:
+            True if registration succeeded, False otherwise.
+        """
+        if not self.registry_url:
+            return False
+
+        import httpx
+
+        agent_url = f"http://{self.host}:{self.port}"
+        registration_data = {
+            "id": self._agent_id,
+            "name": self.name,
+            "url": agent_url,
+            "description": self.description,
+            "skills": self._get_skills(),
+            "tags": [s.get("id", "") for s in self._get_skills()],
+            "metadata": {
+                "port": self.port,
+                "host": self.host,
+                "permission_preset": self.permission_preset.value,
+            },
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(
+                    f"{self.registry_url}/agents/register",
+                    json=registration_data,
+                )
+                if response.status_code == 200:
+                    self.logger.info(f"Registered with registry at {self.registry_url}")
+                    return True
+                else:
+                    self.logger.warning(
+                        f"Registry registration failed: {response.status_code} - {response.text}"
+                    )
+                    return False
+        except Exception as e:
+            self.logger.warning(f"Could not register with registry: {e}")
+            return False
+
+    async def _deregister_from_registry(self) -> bool:
+        """Deregister this agent from the dynamic registry service.
+
+        Returns:
+            True if deregistration succeeded, False otherwise.
+        """
+        if not self.registry_url:
+            return False
+
+        import httpx
+
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                response = await client.delete(
+                    f"{self.registry_url}/agents/{self._agent_id}"
+                )
+                if response.status_code == 200:
+                    self.logger.info(f"Deregistered from registry")
+                    return True
+                else:
+                    self.logger.debug(f"Registry deregistration: {response.status_code}")
+                    return False
+        except Exception as e:
+            self.logger.debug(f"Could not deregister from registry: {e}")
+            return False
+
     def run(self):
         """Run the A2A agent."""
         # Setup telemetry if enabled
@@ -545,6 +620,15 @@ Always be concise and professional in your responses."""
                     lifecycle_span,
                     "agents_discovered",
                     {"count": len(self.connected_agents)},
+                )
+
+            # Register with dynamic registry if configured
+            if self.registry_url:
+                registered = asyncio.run(self._register_with_registry())
+                semantic_tracer.add_event(
+                    lifecycle_span,
+                    "registry_registration",
+                    {"success": registered, "registry_url": self.registry_url},
                 )
 
             semantic_tracer.add_event(
@@ -629,6 +713,10 @@ Always be concise and professional in your responses."""
 
         self._cleanup_done = True
         self.logger.info("Cleaning up agent resources...")
+
+        # Deregister from dynamic registry if configured
+        if self.registry_url:
+            await self._deregister_from_registry()
 
         # Semantic tracing for agent shutdown
         semantic_tracer = get_semantic_tracer()

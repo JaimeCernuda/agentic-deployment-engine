@@ -2,7 +2,31 @@
 
 Provides runtime agent discovery and registration for dynamic workflows.
 
-Note: RegistryService is planned for Phase 2 but not yet implemented.
+Usage:
+    # Start registry service
+    uv run registry --port 8500
+
+    # Or programmatically
+    from src.registry import run_registry, AgentRegistry
+    run_registry(port=8500)
 """
 
-__all__: list[str] = []
+from src.registry.service import (
+    AgentRegistration,
+    AgentRegistry,
+    RegisteredAgent,
+    app,
+    get_registry,
+    main,
+    run_registry,
+)
+
+__all__ = [
+    "AgentRegistration",
+    "AgentRegistry",
+    "RegisteredAgent",
+    "app",
+    "get_registry",
+    "main",
+    "run_registry",
+]

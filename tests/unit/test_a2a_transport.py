@@ -217,7 +217,8 @@ class TestCreateA2ATransportServer:
             call_kwargs = mock_create.call_args
             assert call_kwargs[1]["name"] == "a2a_transport"
             assert call_kwargs[1]["version"] == "1.0.0"
-            assert len(call_kwargs[1]["tools"]) == 2
+            # 3 tools: query_agent, discover_agent, find_agents
+            assert len(call_kwargs[1]["tools"]) == 3
 
 
 class TestConfigSettings:

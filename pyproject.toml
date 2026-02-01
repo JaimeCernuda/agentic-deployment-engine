@@ -66,6 +66,8 @@ research-coordinator = "examples.agents.research_coordinator_agent:main"
 start-all = "src.start_all:main"
 # Job deployment CLI
 deploy = "src.jobs.cli:main"
+# Dynamic agent registry
+registry = "src.registry.service:main"
 # Test scripts (see tests/ for organization: unit/, integration/, usability/)
 test-system = "tests.integration.test_system:main"
 
