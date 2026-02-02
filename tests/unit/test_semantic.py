@@ -11,11 +11,13 @@ import pytest
 from src.observability.semantic import (
     JSONFileExporter,
     SemanticTracer,
+    SharedNDJSONExporter,
     SpanContext,
     SpanData,
     get_current_agent_name,
     get_semantic_tracer,
     merge_job_traces,
+    read_ndjson_trace,
     reset_semantic_tracer,
     write_unified_trace,
 )
@@ -703,3 +705,325 @@ class TestSemanticTracerAdditional:
             # This should not raise
             exporter._write_file()
             assert exporter._current_file is None
+
+
+class TestSharedNDJSONExporter:
+    """Tests for SharedNDJSONExporter - live cross-agent tracing."""
+
+    def test_creates_output_directory(self) -> None:
+        """Exporter should create output directory if it doesn't exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "traces" / "nested"
+            SharedNDJSONExporter(output_dir)
+            assert output_dir.exists()
+
+    def test_start_trace_creates_ndjson_file(self) -> None:
+        """start_trace() should create file using trace_id as filename."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = SharedNDJSONExporter(tmpdir)
+            exporter.start_trace("trace-abc-123", "my-trace")
+
+            assert exporter._current_file is not None
+            assert exporter._current_file.name == "trace-abc-123.ndjson"
+            assert exporter._current_file.exists()
+
+    def test_start_trace_writes_metadata(self) -> None:
+        """start_trace() should write metadata line to new file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = SharedNDJSONExporter(tmpdir)
+            exporter.start_trace("trace-123", "Test Trace")
+
+            with open(exporter._current_file) as f:
+                line = f.readline()
+                data = json.loads(line)
+
+            assert data["_type"] == "trace_metadata"
+            assert data["trace_id"] == "trace-123"
+            assert data["trace_name"] == "Test Trace"
+
+    def test_continue_trace_does_not_write_metadata(self) -> None:
+        """continue_trace() should not write metadata."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = SharedNDJSONExporter(tmpdir)
+            exporter.continue_trace("trace-456")
+
+            # File may not exist yet (no metadata written)
+            if exporter._current_file.exists():
+                with open(exporter._current_file) as f:
+                    content = f.read()
+                assert content == ""
+
+    def test_export_span_appends_ndjson_line(self) -> None:
+        """export_span() should append span as JSON line."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = SharedNDJSONExporter(tmpdir)
+            exporter.start_trace("trace-123", "test")
+
+            span = SpanData(
+                trace_id="trace-123",
+                span_id="span-1",
+                parent_span_id=None,
+                name="test_span",
+                level="agent",
+                category="tool_call",
+                start_time="2026-01-01T00:00:00Z",
+                end_time="2026-01-01T00:00:01Z",
+                duration_ms=1000,
+            )
+            exporter.export_span(span)
+
+            with open(exporter._current_file) as f:
+                lines = f.readlines()
+
+            assert len(lines) == 2  # metadata + span
+            span_data = json.loads(lines[1])
+            assert span_data["_type"] == "span"
+            assert span_data["name"] == "test_span"
+
+    def test_multiple_spans_same_file(self) -> None:
+        """Multiple spans should be appended to the same file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            exporter = SharedNDJSONExporter(tmpdir)
+            exporter.start_trace("trace-123", "test")
+
+            for i in range(5):
+                span = SpanData(
+                    trace_id="trace-123",
+                    span_id=f"span-{i}",
+                    parent_span_id=None,
+                    name=f"span_{i}",
+                    level="agent",
+                    category="test",
+                    start_time=f"2026-01-01T00:00:0{i}Z",
+                )
+                exporter.export_span(span)
+
+            with open(exporter._current_file) as f:
+                lines = f.readlines()
+
+            assert len(lines) == 6  # 1 metadata + 5 spans
+
+    def test_same_trace_id_same_file(self) -> None:
+        """Exporters with same trace_id should use same file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # First exporter starts trace
+            exporter1 = SharedNDJSONExporter(tmpdir)
+            exporter1.start_trace("shared-trace", "test")
+            span1 = SpanData(
+                trace_id="shared-trace",
+                span_id="span-1",
+                parent_span_id=None,
+                name="from_exporter_1",
+                level="agent",
+                category="test",
+                start_time="2026-01-01T00:00:00Z",
+            )
+            exporter1.export_span(span1)
+
+            # Second exporter continues trace
+            exporter2 = SharedNDJSONExporter(tmpdir)
+            exporter2.continue_trace("shared-trace")
+            span2 = SpanData(
+                trace_id="shared-trace",
+                span_id="span-2",
+                parent_span_id=None,
+                name="from_exporter_2",
+                level="agent",
+                category="test",
+                start_time="2026-01-01T00:00:01Z",
+            )
+            exporter2.export_span(span2)
+
+            # Both should have written to same file
+            assert exporter1._current_file == exporter2._current_file
+
+            with open(exporter1._current_file) as f:
+                lines = f.readlines()
+
+            # 1 metadata + 2 spans
+            assert len(lines) == 3
+            names = [json.loads(line).get("name") for line in lines]
+            assert "from_exporter_1" in names
+            assert "from_exporter_2" in names
+
+
+class TestReadNDJSONTrace:
+    """Tests for read_ndjson_trace() function."""
+
+    def test_read_nonexistent_file_returns_none(self) -> None:
+        """read_ndjson_trace() should return None for nonexistent file."""
+        result = read_ndjson_trace("/nonexistent/path/to/trace.ndjson")
+        assert result is None
+
+    def test_read_basic_trace_file(self) -> None:
+        """read_ndjson_trace() should parse NDJSON trace file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_file = Path(tmpdir) / "test.ndjson"
+            with open(trace_file, "w") as f:
+                # Write metadata
+                f.write(
+                    json.dumps(
+                        {
+                            "_type": "trace_metadata",
+                            "trace_id": "trace-123",
+                            "trace_name": "Test Trace",
+                            "started_at": "2026-01-01T00:00:00Z",
+                        }
+                    )
+                    + "\n"
+                )
+                # Write spans
+                f.write(
+                    json.dumps(
+                        {
+                            "_type": "span",
+                            "trace_id": "trace-123",
+                            "span_id": "span-1",
+                            "name": "test_span",
+                            "start_time": "2026-01-01T00:00:01Z",
+                            "attributes": {"agent.name": "Test Agent"},
+                        }
+                    )
+                    + "\n"
+                )
+
+            result = read_ndjson_trace(trace_file)
+
+            assert result is not None
+            assert result["trace_id"] == "trace-123"
+            assert result["trace_name"] == "Test Trace"
+            assert result["span_count"] == 1
+            assert "Test Agent" in result["agents"]
+
+    def test_read_multiple_spans(self) -> None:
+        """read_ndjson_trace() should collect all spans."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_file = Path(tmpdir) / "multi.ndjson"
+            with open(trace_file, "w") as f:
+                f.write(
+                    json.dumps(
+                        {"_type": "trace_metadata", "trace_id": "t", "trace_name": "T"}
+                    )
+                    + "\n"
+                )
+                for i in range(3):
+                    f.write(
+                        json.dumps(
+                            {
+                                "_type": "span",
+                                "trace_id": "t",
+                                "span_id": f"s{i}",
+                                "name": f"span_{i}",
+                                "start_time": f"2026-01-01T00:00:0{i}Z",
+                                "attributes": {"agent.name": f"Agent{i}"},
+                            }
+                        )
+                        + "\n"
+                    )
+
+            result = read_ndjson_trace(trace_file)
+
+            assert result["span_count"] == 3
+            assert len(result["agents"]) == 3
+
+    def test_read_skips_invalid_json_lines(self) -> None:
+        """read_ndjson_trace() should skip invalid JSON lines."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_file = Path(tmpdir) / "partial.ndjson"
+            with open(trace_file, "w") as f:
+                f.write('{"_type": "trace_metadata", "trace_id": "t"}\n')
+                f.write("invalid json line\n")
+                f.write('{"_type": "span", "trace_id": "t", "span_id": "1"}\n')
+
+            result = read_ndjson_trace(trace_file)
+
+            assert result is not None
+            assert result["span_count"] == 1
+
+    def test_read_sorts_spans_by_start_time(self) -> None:
+        """read_ndjson_trace() should sort spans chronologically."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            trace_file = Path(tmpdir) / "sorted.ndjson"
+            with open(trace_file, "w") as f:
+                f.write('{"_type": "trace_metadata", "trace_id": "t"}\n')
+                # Write out of order
+                f.write(
+                    '{"_type": "span", "trace_id": "t", "name": "third", "start_time": "2026-01-01T00:00:03Z"}\n'
+                )
+                f.write(
+                    '{"_type": "span", "trace_id": "t", "name": "first", "start_time": "2026-01-01T00:00:01Z"}\n'
+                )
+                f.write(
+                    '{"_type": "span", "trace_id": "t", "name": "second", "start_time": "2026-01-01T00:00:02Z"}\n'
+                )
+
+            result = read_ndjson_trace(trace_file)
+
+            assert result["spans"][0]["name"] == "first"
+            assert result["spans"][1]["name"] == "second"
+            assert result["spans"][2]["name"] == "third"
+
+
+class TestSemanticTracerWithSharedExporter:
+    """Tests for SemanticTracer using SharedNDJSONExporter."""
+
+    def test_tracer_uses_shared_exporter_by_default(self) -> None:
+        """SemanticTracer should use SharedNDJSONExporter by default."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracer = SemanticTracer(output_dir=tmpdir, enabled=True)
+            assert isinstance(tracer.exporter, SharedNDJSONExporter)
+
+    def test_tracer_can_use_legacy_exporter(self) -> None:
+        """SemanticTracer should support legacy JSONFileExporter."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracer = SemanticTracer(
+                output_dir=tmpdir, enabled=True, use_shared_exporter=False
+            )
+            assert isinstance(tracer.exporter, JSONFileExporter)
+
+    def test_continue_trace_updates_exporter(self) -> None:
+        """continue_trace() should update SharedNDJSONExporter."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracer = SemanticTracer(output_dir=tmpdir, enabled=True)
+            tracer.continue_trace("parent-trace-id")
+
+            assert tracer.get_trace_id() == "parent-trace-id"
+            assert tracer.exporter._current_trace_id == "parent-trace-id"
+
+    def test_job_trace_id_env_var(self) -> None:
+        """SemanticTracer should use AGENT_JOB_TRACE_ID if set."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch.dict(os.environ, {"AGENT_JOB_TRACE_ID": "job-trace-xyz"}):
+                reset_semantic_tracer()
+                tracer = SemanticTracer(output_dir=tmpdir, enabled=True)
+
+                assert tracer.get_trace_id() == "job-trace-xyz"
+                assert tracer.exporter._current_file.name == "job-trace-xyz.ndjson"
+
+    def test_start_trace_with_parent_continues_file(self) -> None:
+        """start_trace() with parent_trace_id should continue existing file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # First tracer creates the file
+            tracer1 = SemanticTracer(output_dir=tmpdir, enabled=True)
+            tracer1.start_trace("parent-job", parent_trace_id=None)
+            parent_id = tracer1.get_trace_id()
+
+            with tracer1.tool_call("tool1", {}):
+                pass
+
+            # Second tracer continues
+            tracer2 = SemanticTracer(output_dir=tmpdir, enabled=True)
+            tracer2.start_trace("child-trace", parent_trace_id=parent_id)
+
+            with tracer2.tool_call("tool2", {}):
+                pass
+
+            # Both should have used same file
+            assert tracer1.exporter._current_file == tracer2.exporter._current_file
+
+            # Verify content
+            result = read_ndjson_trace(tracer1.exporter._current_file)
+            assert result is not None
+            tool_names = [s["name"] for s in result["spans"]]
+            assert "tool:tool1" in tool_names
+            assert "tool:tool2" in tool_names
