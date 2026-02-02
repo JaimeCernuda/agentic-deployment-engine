@@ -1,7 +1,13 @@
 """Observability: logging, telemetry, and semantic tracing."""
 
 from .logging import get_logger, setup_logging
-from .semantic import SemanticTracer, get_current_agent_name, get_semantic_tracer
+from .semantic import (
+    SemanticTracer,
+    SharedNDJSONExporter,
+    get_current_agent_name,
+    get_semantic_tracer,
+    read_ndjson_trace,
+)
 from .telemetry import (
     add_span_attribute,
     extract_context,
@@ -28,6 +34,8 @@ __all__ = [
     "traced_operation",
     # Semantic Tracing
     "SemanticTracer",
+    "SharedNDJSONExporter",
     "get_current_agent_name",
     "get_semantic_tracer",
+    "read_ndjson_trace",
 ]

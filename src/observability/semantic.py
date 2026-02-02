@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import sys
 import threading
 import uuid
 from collections.abc import Generator
@@ -46,6 +47,29 @@ from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
+
+# Windows compatibility for file locking
+if sys.platform == "win32":
+    import msvcrt
+
+    def _lock_file(f) -> None:
+        """Lock file for exclusive write access (Windows)."""
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(f) -> None:
+        """Unlock file (Windows)."""
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_file(f) -> None:
+        """Lock file for exclusive write access (Unix)."""
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(f) -> None:
+        """Unlock file (Unix)."""
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
 
 # Context variable to propagate agent name through spans
 # This allows SDK hooks and A2A transport to know which agent they're tracing
@@ -127,6 +151,177 @@ class JSONFileExporter:
         return self._current_file
 
 
+class SharedNDJSONExporter:
+    """Export traces to shared NDJSON files for live cross-agent tracing.
+
+    This exporter writes spans to NDJSON (newline-delimited JSON) files,
+    using the trace_id as the filename. Multiple agents can safely write
+    to the same file using file locking, enabling true distributed tracing
+    without requiring an external trace collector.
+
+    Unlike JSONFileExporter which creates a new file per agent, this exporter
+    ensures all spans with the same trace_id end up in the same file DURING
+    execution, not via post-hoc merge.
+    """
+
+    def __init__(self, output_dir: Path | str):
+        """Initialize shared NDJSON exporter.
+
+        Args:
+            output_dir: Directory to write trace files.
+        """
+        self.output_dir = Path(output_dir)
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._current_trace_id: str | None = None
+        self._current_file: Path | None = None
+
+    def start_trace(self, trace_id: str, name: str) -> None:
+        """Start a new trace or continue an existing one.
+
+        Uses trace_id as the filename, so all agents with the same
+        trace_id write to the same file.
+
+        Args:
+            trace_id: Unique trace identifier (used as filename).
+            name: Human-readable trace name (stored in metadata).
+        """
+        with self._lock:
+            self._current_trace_id = trace_id
+            # Use trace_id as filename (sanitized)
+            safe_trace_id = "".join(
+                c if c.isalnum() or c in "-_" else "_" for c in trace_id
+            )
+            self._current_file = self.output_dir / f"{safe_trace_id}.ndjson"
+
+            # Write metadata line if this is a new file
+            if not self._current_file.exists():
+                metadata = {
+                    "_type": "trace_metadata",
+                    "trace_id": trace_id,
+                    "trace_name": name,
+                    "started_at": datetime.now(UTC).isoformat(),
+                }
+                self._append_line(metadata)
+
+    def continue_trace(self, trace_id: str) -> None:
+        """Continue an existing trace from another agent.
+
+        Opens the existing trace file for appending without writing
+        new metadata.
+
+        Args:
+            trace_id: The parent trace ID to continue.
+        """
+        with self._lock:
+            self._current_trace_id = trace_id
+            safe_trace_id = "".join(
+                c if c.isalnum() or c in "-_" else "_" for c in trace_id
+            )
+            self._current_file = self.output_dir / f"{safe_trace_id}.ndjson"
+            # Don't write metadata - just set up for appending
+
+    def export_span(self, span: SpanData) -> None:
+        """Export a span to the shared trace file.
+
+        Uses file locking for safe concurrent writes from multiple agents.
+
+        Args:
+            span: Span data to export.
+        """
+        if not self._current_file:
+            return
+
+        span_dict = asdict(span)
+        span_dict["_type"] = "span"
+        self._append_line(span_dict)
+
+    def _append_line(self, data: dict[str, Any]) -> None:
+        """Append a single JSON line to the trace file with locking.
+
+        Args:
+            data: Dictionary to serialize as JSON line.
+        """
+        if not self._current_file:
+            return
+
+        line = json.dumps(data, default=str) + "\n"
+
+        # Use file locking for safe multi-process writes
+        with open(self._current_file, "a", encoding="utf-8") as f:
+            try:
+                _lock_file(f)
+                f.write(line)
+                f.flush()
+            finally:
+                try:
+                    _unlock_file(f)
+                except Exception:
+                    pass  # Best effort unlock
+
+    def get_output_path(self) -> Path | None:
+        """Get the current trace file path."""
+        return self._current_file
+
+
+def read_ndjson_trace(trace_file: Path | str) -> dict[str, Any] | None:
+    """Read an NDJSON trace file into a unified trace structure.
+
+    Converts the NDJSON format back to the standard trace JSON format
+    for compatibility with existing analysis tools.
+
+    Args:
+        trace_file: Path to the NDJSON trace file.
+
+    Returns:
+        Unified trace dict, or None if file doesn't exist.
+    """
+    trace_path = Path(trace_file)
+    if not trace_path.exists():
+        return None
+
+    metadata: dict[str, Any] = {}
+    spans: list[dict[str, Any]] = []
+    agent_names: set[str] = set()
+    trace_ids: set[str] = set()
+
+    with open(trace_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                data = json.loads(line)
+                entry_type = data.pop("_type", "span")
+
+                if entry_type == "trace_metadata":
+                    metadata = data
+                elif entry_type == "span":
+                    spans.append(data)
+                    trace_ids.add(data.get("trace_id", "unknown"))
+                    agent_name = data.get("attributes", {}).get("agent.name")
+                    if agent_name:
+                        agent_names.add(agent_name)
+            except json.JSONDecodeError:
+                logger.warning(f"Invalid JSON line in trace file: {line[:100]}")
+
+    # Sort spans by start_time
+    spans.sort(key=lambda s: s.get("start_time", ""))
+
+    return {
+        "trace_file": str(trace_path),
+        "export_time": datetime.now(UTC).isoformat(),
+        "trace_id": metadata.get("trace_id"),
+        "trace_name": metadata.get("trace_name"),
+        "started_at": metadata.get("started_at"),
+        "span_count": len(spans),
+        "trace_ids": list(trace_ids),
+        "agents": list(agent_names),
+        "spans": spans,
+    }
+
+
 class SpanContext:
     """Thread-local span context for parent tracking."""
 
@@ -148,6 +343,16 @@ class SemanticTracer:
 
     Provides structured tracing at framework, A2A, and agent levels
     with rich semantic attributes for debugging and analysis.
+
+    Supports live cross-agent trace propagation via SharedNDJSONExporter,
+    which writes all spans with the same trace_id to a single file during
+    execution. This enables true distributed tracing without requiring
+    an external trace collector.
+
+    Trace ID Propagation:
+    1. Job-level: Deployer sets AGENT_JOB_TRACE_ID for all agents
+    2. Request-level: X-Semantic-Trace-Id header propagates trace context
+    3. Auto-continuation: If parent trace_id is detected, spans append to same file
     """
 
     def __init__(
@@ -155,23 +360,42 @@ class SemanticTracer:
         service_name: str = "agentic-deployment",
         output_dir: str | Path | None = None,
         enabled: bool = True,
+        use_shared_exporter: bool = True,
     ):
         """Initialize semantic tracer.
 
         Args:
             service_name: Name of the service being traced.
-            output_dir: Directory for JSON trace files. None disables file export.
+            output_dir: Directory for trace files. None disables file export.
             enabled: Whether tracing is enabled.
+            use_shared_exporter: Use SharedNDJSONExporter (True) for live
+                cross-agent tracing, or JSONFileExporter (False) for legacy mode.
         """
         self.service_name = service_name
         self.enabled = enabled
         self._trace_id: str | None = None
+        self._use_shared_exporter = use_shared_exporter
 
-        # File exporter
+        # File exporter - prefer SharedNDJSONExporter for live cross-agent tracing
         if output_dir and enabled:
-            self.exporter = JSONFileExporter(output_dir)
+            if use_shared_exporter:
+                self.exporter = SharedNDJSONExporter(output_dir)
+            else:
+                self.exporter = JSONFileExporter(output_dir)
         else:
             self.exporter = None
+
+        # Check for job-level trace_id from deployer
+        # This enables all agents in a job to share the same trace file
+        job_trace_id = os.environ.get("AGENT_JOB_TRACE_ID")
+        if job_trace_id and enabled and self.exporter:
+            self._trace_id = job_trace_id
+            # Continue the existing trace (don't write new metadata)
+            if isinstance(self.exporter, SharedNDJSONExporter):
+                self.exporter.continue_trace(job_trace_id)
+            else:
+                self.exporter.start_trace(job_trace_id, f"agent-{service_name}")
+            logger.debug(f"Continuing job trace: {job_trace_id}")
 
         # Also use OTEL if available
         self._otel_tracer = None
@@ -186,6 +410,9 @@ class SemanticTracer:
     def start_trace(self, name: str, parent_trace_id: str | None = None) -> str:
         """Start a new trace or continue an existing one.
 
+        For SharedNDJSONExporter: If parent_trace_id is provided, appends to
+        the existing trace file rather than creating a new one.
+
         Args:
             name: Human-readable trace name.
             parent_trace_id: Optional parent trace ID for cross-agent correlation.
@@ -197,7 +424,12 @@ class SemanticTracer:
         # Use parent trace_id if provided (for cross-agent correlation)
         self._trace_id = parent_trace_id or str(uuid.uuid4())
         if self.exporter:
-            self.exporter.start_trace(self._trace_id, name)
+            if parent_trace_id and isinstance(self.exporter, SharedNDJSONExporter):
+                # Continue existing trace - don't write new metadata
+                self.exporter.continue_trace(self._trace_id)
+            else:
+                # Start new trace - write metadata
+                self.exporter.start_trace(self._trace_id, name)
         return self._trace_id
 
     def get_trace_id(self) -> str | None:
@@ -211,12 +443,15 @@ class SemanticTracer:
     def continue_trace(self, trace_id: str) -> None:
         """Continue an existing trace from another agent.
 
-        Use this to correlate traces across A2A calls.
+        Use this to correlate traces across A2A calls. With SharedNDJSONExporter,
+        this also opens the shared trace file for appending.
 
         Args:
             trace_id: The parent trace ID to continue.
         """
         self._trace_id = trace_id
+        if self.exporter and isinstance(self.exporter, SharedNDJSONExporter):
+            self.exporter.continue_trace(trace_id)
 
     def _create_span(
         self,
@@ -505,6 +740,45 @@ class SemanticTracer:
         ) as span:
             yield span
 
+    @contextmanager
+    def registry_discovery(
+        self,
+        source_agent: str,
+        registry_url: str,
+        search_params: dict[str, str] | None = None,
+    ) -> Generator[SpanData, None, None]:
+        """Trace registry-based agent discovery.
+
+        Used when an agent searches the dynamic registry for other agents
+        by skill, tag, or name.
+
+        Args:
+            source_agent: Agent performing the discovery.
+            registry_url: URL of the registry service.
+            search_params: Search parameters (skill, tag, name, etc.).
+
+        Yields:
+            Active span.
+        """
+        params = search_params or {}
+        search_desc = ", ".join(
+            f"{k}={v}" for k, v in params.items() if v and k != "healthy_only"
+        )
+        with self._span_context(
+            name=f"registry_discovery:{source_agent}",
+            level="a2a",
+            category="registry_discovery",
+            attributes={
+                "registry.url": registry_url,
+                "registry.source_agent": source_agent,
+                "registry.search_skill": params.get("skill"),
+                "registry.search_tag": params.get("tag"),
+                "registry.search_name": params.get("name"),
+                "registry.search_desc": search_desc or "all agents",
+            },
+        ) as span:
+            yield span
+
     # =========================================================================
     # Agent Level Spans
     # =========================================================================
@@ -611,6 +885,75 @@ class SemanticTracer:
                 "tool.success": success,
             }
         )
+
+    @contextmanager
+    def llm_inference(
+        self,
+        model: str,
+        prompt_length: int | None = None,
+    ) -> Generator[SpanData, None, None]:
+        """Trace an LLM inference call (query to full response).
+
+        This captures the total time from sending a query to receiving
+        all response messages. Child llm_message spans provide per-message
+        detail within this parent span.
+
+        Args:
+            model: LLM model being used.
+            prompt_length: Length of the prompt in characters.
+
+        Yields:
+            Active span.
+        """
+        with self._span_context(
+            name=f"llm:inference:{model}",
+            level="agent",
+            category="llm_inference",
+            attributes={
+                "llm.model": model,
+                "llm.prompt_length": prompt_length,
+            },
+        ) as span:
+            yield span
+
+    def record_llm_response(
+        self,
+        span: SpanData,
+        response_length: int,
+        message_count: int,
+        tool_count: int,
+        time_to_first_token_ms: float | None = None,
+        input_tokens: int | None = None,
+        output_tokens: int | None = None,
+        total_cost_usd: float | None = None,
+    ) -> None:
+        """Record LLM response metrics on an inference span.
+
+        Args:
+            span: The llm_inference span to update.
+            response_length: Total response length in characters.
+            message_count: Number of messages received.
+            tool_count: Number of tool calls made.
+            time_to_first_token_ms: Time to first token in milliseconds.
+            input_tokens: Number of input tokens used.
+            output_tokens: Number of output tokens generated.
+            total_cost_usd: Total cost in USD (if available from API).
+        """
+        span.attributes.update(
+            {
+                "llm.response_length": response_length,
+                "llm.message_count": message_count,
+                "llm.tool_count": tool_count,
+            }
+        )
+        if time_to_first_token_ms is not None:
+            span.attributes["llm.ttft_ms"] = time_to_first_token_ms
+        if input_tokens is not None:
+            span.attributes["llm.input_tokens"] = input_tokens
+        if output_tokens is not None:
+            span.attributes["llm.output_tokens"] = output_tokens
+        if total_cost_usd is not None:
+            span.attributes["llm.cost_usd"] = total_cost_usd
 
     @contextmanager
     def llm_message(
