@@ -293,7 +293,10 @@ async def find_agents(args: dict[str, Any]) -> dict[str, Any]:
     if not registry_url:
         return {
             "content": [
-                {"type": "text", "text": "Error: registry_url is required or set AGENT_REGISTRY_URL"}
+                {
+                    "type": "text",
+                    "text": "Error: registry_url is required or set AGENT_REGISTRY_URL",
+                }
             ],
             "is_error": True,
         }
@@ -319,67 +322,93 @@ async def find_agents(args: dict[str, Any]) -> dict[str, Any]:
     if name:
         params["name"] = name
 
-    with traced_operation("find_agents", {"registry.url": registry_url, **params}):
-        try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(f"{registry_url}/agents/search", params=params)
-                response.raise_for_status()
-                agents = response.json()
+    # Semantic tracing for registry discovery
+    semantic_tracer = get_semantic_tracer()
+    source_agent = get_current_agent_name() or "unknown"
 
-                if not agents:
-                    search_desc = []
-                    if skill:
-                        search_desc.append(f"skill='{skill}'")
-                    if tag:
-                        search_desc.append(f"tag='{tag}'")
-                    if name:
-                        search_desc.append(f"name='{name}'")
+    with semantic_tracer.registry_discovery(
+        source_agent=source_agent,
+        registry_url=registry_url,
+        search_params=params,
+    ) as sem_span:
+        with traced_operation("find_agents", {"registry.url": registry_url, **params}):
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(
+                        f"{registry_url}/agents/search", params=params
+                    )
+                    response.raise_for_status()
+                    agents = response.json()
+
+                    # Record discovery results on semantic span
+                    sem_span.attributes["agents_found"] = len(agents)
+                    if agents:
+                        sem_span.attributes["agent_names"] = ", ".join(
+                            a.get("name", "?") for a in agents
+                        )
+
+                    if not agents:
+                        search_desc = []
+                        if skill:
+                            search_desc.append(f"skill='{skill}'")
+                        if tag:
+                            search_desc.append(f"tag='{tag}'")
+                        if name:
+                            search_desc.append(f"name='{name}'")
+                        return {
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": f"No agents found matching: {', '.join(search_desc) or 'any criteria'}",
+                                }
+                            ]
+                        }
+
+                    # Format results
+                    result_lines = [f"Found {len(agents)} agent(s):\n"]
+                    for agent in agents:
+                        agent_name = agent.get("name", "Unknown")
+                        agent_url = agent.get("url", "")
+                        description = agent.get("description", "")
+                        skills = agent.get("skills", [])
+                        health = agent.get("health_status", "unknown")
+
+                        result_lines.append(f"**{agent_name}** ({health})")
+                        result_lines.append(f"  URL: {agent_url}")
+                        if description:
+                            result_lines.append(f"  Description: {description}")
+                        if skills:
+                            skill_names = [
+                                s.get("name", s.get("id", "?")) for s in skills
+                            ]
+                            result_lines.append(f"  Skills: {', '.join(skill_names)}")
+                        result_lines.append("")
+
                     return {
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": f"No agents found matching: {', '.join(search_desc) or 'any criteria'}",
-                            }
-                        ]
+                        "content": [{"type": "text", "text": "\n".join(result_lines)}]
                     }
 
-                # Format results
-                result_lines = [f"Found {len(agents)} agent(s):\n"]
-                for agent in agents:
-                    agent_name = agent.get("name", "Unknown")
-                    agent_url = agent.get("url", "")
-                    description = agent.get("description", "")
-                    skills = agent.get("skills", [])
-                    health = agent.get("health_status", "unknown")
-
-                    result_lines.append(f"**{agent_name}** ({health})")
-                    result_lines.append(f"  URL: {agent_url}")
-                    if description:
-                        result_lines.append(f"  Description: {description}")
-                    if skills:
-                        skill_names = [s.get("name", s.get("id", "?")) for s in skills]
-                        result_lines.append(f"  Skills: {', '.join(skill_names)}")
-                    result_lines.append("")
-
-                return {"content": [{"type": "text", "text": "\n".join(result_lines)}]}
-
-        except httpx.HTTPStatusError as e:
-            return {
-                "content": [
-                    {
-                        "type": "text",
-                        "text": f"Error: HTTP {e.response.status_code} from registry",
-                    }
-                ],
-                "is_error": True,
-            }
-        except Exception as e:
-            return {
-                "content": [
-                    {"type": "text", "text": f"Error querying registry: {str(e)}"}
-                ],
-                "is_error": True,
-            }
+            except httpx.HTTPStatusError as e:
+                sem_span.status = "error"
+                sem_span.error_message = f"HTTP {e.response.status_code}"
+                return {
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": f"Error: HTTP {e.response.status_code} from registry",
+                        }
+                    ],
+                    "is_error": True,
+                }
+            except Exception as e:
+                sem_span.status = "error"
+                sem_span.error_message = str(e)
+                return {
+                    "content": [
+                        {"type": "text", "text": f"Error querying registry: {str(e)}"}
+                    ],
+                    "is_error": True,
+                }
 
 
 def create_a2a_transport_server(name: str | None = None):
@@ -396,5 +425,7 @@ def create_a2a_transport_server(name: str | None = None):
     """
     server_name = name or "a2a_transport"
     return create_sdk_mcp_server(
-        name=server_name, version="1.0.0", tools=[query_agent, discover_agent, find_agents]
+        name=server_name,
+        version="1.0.0",
+        tools=[query_agent, discover_agent, find_agents],
     )
