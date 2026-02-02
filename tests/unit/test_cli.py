@@ -361,6 +361,186 @@ class TestQueryCommand:
             assert "not found" in result.output.lower()
 
 
+class TestSessionsCommands:
+    """Test sessions subcommand group."""
+
+    def test_sessions_list_no_sessions(self) -> None:
+        """Sessions list shows message when no sessions exist."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["sessions", "list"])
+
+                assert result.exit_code == 0
+                assert "no sessions" in result.output.lower()
+
+    def test_sessions_list_with_sessions(self) -> None:
+        """Sessions list shows sessions table."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sessions_dir = Path(tmpdir) / ".sessions"
+            sessions_dir.mkdir()
+            session_file = sessions_dir / "test-session.json"
+            import json
+            import time
+
+            session_data = {
+                "session_id": "test-session",
+                "agent_id": "weather",
+                "job_id": "test-job",
+                "messages": [{"role": "user", "content": "hello"}],
+                "created_at": time.time(),
+                "last_accessed": time.time(),
+            }
+            with open(session_file, "w") as f:
+                json.dump(session_data, f)
+
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["sessions", "list"])
+
+                assert result.exit_code == 0
+                assert "test-session" in result.output
+
+    def test_sessions_show_not_found(self) -> None:
+        """Sessions show fails for non-existent session."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["sessions", "show", "nonexistent"])
+
+                assert "not found" in result.output.lower()
+
+    def test_sessions_show_existing(self) -> None:
+        """Sessions show displays session info."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sessions_dir = Path(tmpdir) / ".sessions"
+            sessions_dir.mkdir()
+            session_file = sessions_dir / "test-session.json"
+            import json
+            import time
+
+            session_data = {
+                "session_id": "test-session",
+                "agent_id": "weather",
+                "job_id": "test-job",
+                "messages": [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "hi there"},
+                ],
+                "created_at": time.time(),
+                "last_accessed": time.time(),
+            }
+            with open(session_file, "w") as f:
+                json.dump(session_data, f)
+
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["sessions", "show", "test-session"])
+
+                assert result.exit_code == 0
+                assert "test-session" in result.output
+                assert "weather" in result.output
+
+    def test_sessions_delete_not_found(self) -> None:
+        """Sessions delete fails for non-existent session."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["sessions", "delete", "nonexistent"])
+
+                assert "not found" in result.output.lower()
+
+    def test_sessions_delete_existing(self) -> None:
+        """Sessions delete removes session file."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sessions_dir = Path(tmpdir) / ".sessions"
+            sessions_dir.mkdir()
+            session_file = sessions_dir / "test-session.json"
+            session_file.write_text('{"session_id": "test-session"}')
+
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(
+                    app, ["sessions", "delete", "test-session", "--force"]
+                )
+
+                assert result.exit_code == 0
+                assert "deleted" in result.output.lower()
+                assert not session_file.exists()
+
+    def test_sessions_clear_no_sessions(self) -> None:
+        """Sessions clear shows message when no sessions."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["sessions", "clear", "--force"])
+
+                assert result.exit_code == 0
+                assert "no sessions" in result.output.lower()
+
+    def test_sessions_clear_removes_all(self) -> None:
+        """Sessions clear removes all session files."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sessions_dir = Path(tmpdir) / ".sessions"
+            sessions_dir.mkdir()
+            (sessions_dir / "session1.json").write_text('{"session_id": "1"}')
+            (sessions_dir / "session2.json").write_text('{"session_id": "2"}')
+
+            with patch("src.jobs.cli.Path.cwd", return_value=Path(tmpdir)):
+                result = runner.invoke(app, ["sessions", "clear", "--force"])
+
+                assert result.exit_code == 0
+                assert "cleared" in result.output.lower()
+                assert len(list(sessions_dir.glob("*.json"))) == 0
+
+
+class TestChatCommand:
+    """Test chat command."""
+
+    def test_chat_job_not_found(self) -> None:
+        """Chat command fails for non-existent job."""
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_registry.get_job.return_value = None
+            mock_get_registry.return_value = mock_registry
+
+            result = runner.invoke(app, ["chat", "nonexistent-job"])
+
+            assert result.exit_code == 1
+            assert "not found" in result.output.lower()
+
+    def test_chat_job_not_running(self) -> None:
+        """Chat command fails for stopped job."""
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_job = MagicMock()
+            mock_job.status = "stopped"
+            mock_registry.get_job.return_value = mock_job
+            mock_get_registry.return_value = mock_registry
+
+            result = runner.invoke(app, ["chat", "test-job"])
+
+            assert result.exit_code == 1
+            assert "not running" in result.output.lower()
+
+    def test_chat_agent_not_found(self) -> None:
+        """Chat command fails for non-existent agent."""
+        with patch("src.jobs.cli.get_registry") as mock_get_registry:
+            mock_registry = MagicMock()
+            mock_job = MagicMock()
+            mock_job.status = "running"
+            mock_job.agents = {"weather": MagicMock()}
+            mock_registry.get_job.return_value = mock_job
+            mock_get_registry.return_value = mock_registry
+
+            result = runner.invoke(app, ["chat", "test-job", "--agent", "nonexistent"])
+
+            assert result.exit_code == 1
+            assert "not found" in result.output.lower()
+
+    def test_chat_help_shows_commands(self) -> None:
+        """Chat --help shows available commands."""
+        result = runner.invoke(app, ["chat", "--help"])
+
+        assert result.exit_code == 0
+        assert "/help" in result.output
+        assert "/quit" in result.output
+        assert "/session" in result.output
+
+
 class TestMainEntryPoint:
     """Test main entry point."""
 
@@ -376,3 +556,17 @@ class TestMainEntryPoint:
 
         assert result.exit_code == 0
         assert "deploy" in result.output.lower() or "job" in result.output.lower()
+
+    def test_sessions_subcommand_available(self) -> None:
+        """Sessions subcommand is available in help."""
+        result = runner.invoke(app, ["--help"])
+
+        assert result.exit_code == 0
+        assert "sessions" in result.output.lower()
+
+    def test_chat_command_available(self) -> None:
+        """Chat command is available in help."""
+        result = runner.invoke(app, ["--help"])
+
+        assert result.exit_code == 0
+        assert "chat" in result.output.lower()
