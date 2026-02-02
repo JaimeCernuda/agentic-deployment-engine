@@ -122,7 +122,9 @@ def list_planets() -> str:
     """List all available planets with basic stats."""
     lines = ["**Solar System Planets (Available):**"]
     for name, data in PLANET_DATA.items():
-        lines.append(f"- {name.title()}: {data['diameter_km']:,} km diameter, {data['moons']} moons")
+        lines.append(
+            f"- {name.title()}: {data['diameter_km']:,} km diameter, {data['moons']} moons"
+        )
     return "\n".join(lines)
 
 

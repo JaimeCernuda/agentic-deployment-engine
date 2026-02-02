@@ -6,9 +6,8 @@ Agents self-register on startup and are automatically removed when unhealthy.
 
 import asyncio
 import logging
-import time
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -27,9 +26,13 @@ class AgentRegistration(BaseModel):
     name: str = Field(..., description="Human-readable agent name")
     url: str = Field(..., description="Agent's base URL (e.g., http://localhost:9001)")
     description: str = Field(default="", description="Agent description")
-    skills: list[dict[str, Any]] = Field(default_factory=list, description="Agent capabilities")
+    skills: list[dict[str, Any]] = Field(
+        default_factory=list, description="Agent capabilities"
+    )
     tags: list[str] = Field(default_factory=list, description="Searchable tags")
-    metadata: dict[str, Any] = Field(default_factory=dict, description="Additional metadata")
+    metadata: dict[str, Any] = Field(
+        default_factory=dict, description="Additional metadata"
+    )
 
 
 class RegisteredAgent(BaseModel):
@@ -117,7 +120,7 @@ class AgentRegistry:
                         async with self._lock:
                             if agent_id in self._agents:
                                 self._agents[agent_id].health_status = "healthy"
-                                self._agents[agent_id].last_seen = datetime.now(timezone.utc)
+                                self._agents[agent_id].last_seen = datetime.now(UTC)
                                 self._agents[agent_id].consecutive_failures = 0
                     else:
                         await self._record_failure(agent_id)
@@ -141,12 +144,15 @@ class AgentRegistry:
         async with self._lock:
             if agent_id in self._agents:
                 self._agents[agent_id].consecutive_failures += 1
-                if self._agents[agent_id].consecutive_failures >= self._unhealthy_threshold:
+                if (
+                    self._agents[agent_id].consecutive_failures
+                    >= self._unhealthy_threshold
+                ):
                     self._agents[agent_id].health_status = "unhealthy"
 
     async def register(self, registration: AgentRegistration) -> RegisteredAgent:
         """Register or update an agent."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
 
         async with self._lock:
             if registration.id in self._agents:
@@ -179,7 +185,9 @@ class AgentRegistry:
                     consecutive_failures=0,
                 )
                 self._agents[registration.id] = agent
-                logger.info(f"New agent registered: {registration.id} at {registration.url}")
+                logger.info(
+                    f"New agent registered: {registration.id} at {registration.url}"
+                )
                 return agent
 
     async def deregister(self, agent_id: str) -> bool:
@@ -233,7 +241,9 @@ class AgentRegistry:
 
         if tag:
             tag_lower = tag.lower()
-            results = [a for a in results if any(tag_lower in t.lower() for t in a.tags)]
+            results = [
+                a for a in results if any(tag_lower in t.lower() for t in a.tags)
+            ]
 
         if name:
             name_lower = name.lower()
@@ -251,7 +261,9 @@ def get_registry() -> AgentRegistry:
     global _registry
     if _registry is None:
         _registry = AgentRegistry(
-            health_check_interval=getattr(settings, "registry_health_check_interval", 30),
+            health_check_interval=getattr(
+                settings, "registry_health_check_interval", 30
+            ),
             unhealthy_threshold=getattr(settings, "registry_unhealthy_threshold", 3),
             removal_threshold=getattr(settings, "registry_removal_threshold", 5),
         )
@@ -293,7 +305,9 @@ async def deregister_agent(agent_id: str) -> dict[str, str]:
 
 
 @app.get("/agents", response_model=list[RegisteredAgent])
-async def list_agents(healthy_only: bool = Query(False, description="Only return healthy agents")) -> list[RegisteredAgent]:
+async def list_agents(
+    healthy_only: bool = Query(False, description="Only return healthy agents"),
+) -> list[RegisteredAgent]:
     """List all registered agents."""
     registry = get_registry()
     return await registry.list_agents(healthy_only=healthy_only)
@@ -308,7 +322,9 @@ async def search_agents(
 ) -> list[RegisteredAgent]:
     """Search for agents by capability."""
     registry = get_registry()
-    return await registry.search_agents(skill=skill, tag=tag, name=name, healthy_only=healthy_only)
+    return await registry.search_agents(
+        skill=skill, tag=tag, name=name, healthy_only=healthy_only
+    )
 
 
 @app.get("/agents/{agent_id}", response_model=RegisteredAgent)
@@ -352,7 +368,11 @@ def main() -> None:
         "--port", "-p", type=int, default=8500, help="Port to listen on (default: 8500)"
     )
     parser.add_argument(
-        "--host", "-H", type=str, default="0.0.0.0", help="Host to bind to (default: 0.0.0.0)"
+        "--host",
+        "-H",
+        type=str,
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)",
     )
     args = parser.parse_args()
 

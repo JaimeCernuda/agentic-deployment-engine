@@ -8,13 +8,11 @@ Usage:
 """
 
 import asyncio
-import json
 import sys
-from datetime import datetime
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 # Simple mock weather data
 WEATHER_DATA = {
@@ -143,7 +141,9 @@ async def main():
     # Log to stderr so it doesn't interfere with MCP protocol on stdout
     print("Weather stdio MCP server starting...", file=sys.stderr)
     async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
+        await server.run(
+            read_stream, write_stream, server.create_initialization_options()
+        )
 
 
 if __name__ == "__main__":
