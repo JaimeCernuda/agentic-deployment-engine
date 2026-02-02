@@ -239,74 +239,118 @@ class ClaudeSDKBackend(AgentBackend):
 
         try:
             logger.debug(f"Executing query ({len(prompt)} chars)")
-            await client.query(prompt)
 
-            response = ""
-            message_count = 0
-            tool_count = 0
+            # Wrap entire LLM call in inference span for proper timing
+            import time
 
-            async for message in client.receive_response():
-                message_count += 1
-                stop_reason = getattr(message, "stop_reason", None)
+            with tracer.llm_inference(
+                model="claude-agent-sdk",
+                prompt_length=len(prompt),
+            ) as inference_span:
+                inference_start = time.perf_counter()
+                ttft_ms: float | None = None
 
-                content = getattr(message, "content", None)
-                if content is not None:
-                    # Build content summary for framework-level tracing
-                    # (detailed tool tracing is handled by SDK hooks inside the loop)
-                    content_parts: list[str] = []
-                    has_tool_use = False
-                    has_tool_result = False
+                await client.query(prompt)
 
-                    for block in content:
-                        block_type = getattr(block, "type", None)
-                        text = getattr(block, "text", None)
-                        tool_name = getattr(block, "name", None)
+                response = ""
+                message_count = 0
+                tool_count = 0
+                # Token usage tracking (from ResultMessage)
+                input_tokens: int | None = None
+                output_tokens: int | None = None
+                total_cost_usd: float | None = None
 
-                        if text is not None:
-                            response += text
-                            content_parts.append(text)
+                async for message in client.receive_response():
+                    # Record time-to-first-token on first message
+                    if ttft_ms is None:
+                        ttft_ms = (time.perf_counter() - inference_start) * 1000
 
-                        if tool_name is not None:
-                            # Track tool usage at framework level
-                            # (internal tool execution is traced by PreToolUse/PostToolUse hooks)
-                            tool_count += 1
-                            tools_used_names.append(tool_name)
-                            content_parts.append(f"[tool:{tool_name}]")
-                            has_tool_use = True
+                    message_count += 1
+                    stop_reason = getattr(message, "stop_reason", None)
 
-                        if block_type == "tool_result":
-                            tool_content = getattr(block, "content", None)
-                            result_preview = (
-                                str(tool_content)[:50] if tool_content else ""
-                            )
-                            content_parts.append(f"[result:{result_preview}...]")
-                            has_tool_result = True
-
-                    # Infer role from content structure
-                    # SDK receive_response() returns assistant messages, but we can be more specific
-                    if has_tool_result:
-                        role = "tool_result"
-                    elif has_tool_use:
-                        role = "assistant_tool_use"
-                    else:
-                        role = "assistant"
-
-                    # Framework-level: trace each LLM message in the external response stream
-                    full_content = " ".join(content_parts) if content_parts else ""
-                    with tracer.llm_message(
-                        role=role,
-                        content=full_content,
-                        model="claude-agent-sdk",
-                    ) as span:
-                        tracer.add_event(
-                            span,
-                            "message_received",
-                            {
-                                "message_index": message_count,
-                                "stop_reason": stop_reason,
-                                "tool_count": tool_count,
-                            },
+                    # Capture token usage from ResultMessage (final message)
+                    # SDK may return usage in different formats; capture what's available
+                    usage = getattr(message, "usage", None)
+                    if usage and isinstance(usage, dict):
+                        # Try standard fields first, fall back to cache fields
+                        input_tokens = usage.get(
+                            "input_tokens", usage.get("cache_read_input_tokens")
                         )
+                        output_tokens = usage.get("output_tokens")
+                    cost = getattr(message, "total_cost_usd", None)
+                    if cost is not None:
+                        total_cost_usd = cost
+
+                    content = getattr(message, "content", None)
+                    if content is not None:
+                        # Build content summary for framework-level tracing
+                        # (detailed tool tracing is handled by SDK hooks inside the loop)
+                        content_parts: list[str] = []
+                        has_tool_use = False
+                        has_tool_result = False
+
+                        for block in content:
+                            block_type = getattr(block, "type", None)
+                            text = getattr(block, "text", None)
+                            tool_name = getattr(block, "name", None)
+
+                            if text is not None:
+                                response += text
+                                content_parts.append(text)
+
+                            if tool_name is not None:
+                                # Track tool usage at framework level
+                                # (internal tool execution is traced by PreToolUse/PostToolUse hooks)
+                                tool_count += 1
+                                tools_used_names.append(tool_name)
+                                content_parts.append(f"[tool:{tool_name}]")
+                                has_tool_use = True
+
+                            if block_type == "tool_result":
+                                tool_content = getattr(block, "content", None)
+                                result_preview = (
+                                    str(tool_content)[:50] if tool_content else ""
+                                )
+                                content_parts.append(f"[result:{result_preview}...]")
+                                has_tool_result = True
+
+                        # Infer role from content structure
+                        # SDK receive_response() returns assistant messages
+                        if has_tool_result:
+                            role = "tool_result"
+                        elif has_tool_use:
+                            role = "assistant_tool_use"
+                        else:
+                            role = "assistant"
+
+                        # Framework-level: trace each LLM message in response stream
+                        full_content = " ".join(content_parts) if content_parts else ""
+                        with tracer.llm_message(
+                            role=role,
+                            content=full_content,
+                            model="claude-agent-sdk",
+                        ) as span:
+                            tracer.add_event(
+                                span,
+                                "message_received",
+                                {
+                                    "message_index": message_count,
+                                    "stop_reason": stop_reason,
+                                    "tool_count": tool_count,
+                                },
+                            )
+
+                # Record LLM response metrics on inference span
+                tracer.record_llm_response(
+                    inference_span,
+                    response_length=len(response),
+                    message_count=message_count,
+                    tool_count=tool_count,
+                    time_to_first_token_ms=ttft_ms,
+                    input_tokens=input_tokens,
+                    output_tokens=output_tokens,
+                    total_cost_usd=total_cost_usd,
+                )
 
             logger.debug(
                 f"Query complete: {message_count} messages, {tool_count} tools"

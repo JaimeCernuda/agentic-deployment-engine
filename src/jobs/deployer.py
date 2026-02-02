@@ -885,12 +885,25 @@ class AgentDeployer:
         timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         run_id = f"{job.job.name}-{timestamp}"
 
-        # Get semantic tracer and start job deployment trace
+        # Generate job-level trace_id for live cross-agent tracing
+        # All agents will write to the same trace file using this ID
+        import uuid
+
+        job_trace_id = str(uuid.uuid4())
+
+        # Get semantic tracer and start job deployment trace with job-level trace_id
         tracer = get_semantic_tracer()
+        tracer.start_trace(f"deploy-{job.job.name}", parent_trace_id=None)
+        # Override with job trace_id for consistency
+        tracer._trace_id = job_trace_id
+        if tracer.exporter:
+            tracer.exporter.start_trace(job_trace_id, f"job-{job.job.name}")
+
         agent_ids = [a.id for a in job.agents]
         topology_type = job.topology.type if job.topology else None
 
         logger.info(f"Deploying job: {job.job.name} (run: {run_id})")
+        logger.info(f"Job trace ID: {job_trace_id}")
         logger.info(f"Deployment strategy: {job.deployment.strategy}")
         logger.info(f"Stages: {len(plan.stages)}")
 
@@ -907,6 +920,10 @@ class AgentDeployer:
             try:
                 # Build global environment
                 global_env = dict(job.environment) if job.environment else {}
+
+                # Pass job trace_id to all agents for live cross-agent tracing
+                # All agents will write to the same NDJSON trace file
+                global_env["AGENT_JOB_TRACE_ID"] = job_trace_id
 
                 # Auto-configure AGENT_ALLOWED_HOSTS for cross-node communication
                 # Extract all unique hosts from agent URLs to enable A2A communication

@@ -83,6 +83,11 @@ class TopologyResolver:
                 stages.extend(topology.levels)
             return stages
 
+        elif topology.type == "dynamic":
+            # Dynamic topology: no predefined connections
+            # All agents can be deployed in parallel (they discover each other via registry)
+            return [[agent.id for agent in job.agents]]
+
         return []
 
     def _resolve_ssh_hostname(self, host_alias: str) -> str:
@@ -252,6 +257,12 @@ class TopologyResolver:
                         # Last level
                         for agent_id in current_level:
                             connections[agent_id] = []
+
+        elif topology.type == "dynamic":
+            # Dynamic topology: no predefined connections
+            # Agents discover each other at runtime via registry
+            # All agents start with empty connections
+            pass  # connections already initialized to empty lists
 
         return connections
 

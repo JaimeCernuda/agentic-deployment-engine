@@ -14,6 +14,7 @@ import pytest
 
 from src.observability.semantic import (
     SemanticTracer,
+    read_ndjson_trace,
     reset_semantic_tracer,
 )
 
@@ -39,12 +40,20 @@ class TestFailureModeTracing:
         os.environ.pop("AGENT_SEMANTIC_TRACE_DIR", None)
 
     def _read_trace_file(self) -> dict | None:
-        """Read the most recent trace file."""
-        trace_files = list(self.trace_dir.glob("trace_*.json"))
-        if not trace_files:
-            return None
-        latest = max(trace_files, key=lambda p: p.stat().st_mtime)
-        return json.loads(latest.read_text())
+        """Read the most recent trace file (supports both JSON and NDJSON formats)."""
+        # Try NDJSON first (new format)
+        ndjson_files = list(self.trace_dir.glob("*.ndjson"))
+        if ndjson_files:
+            latest = max(ndjson_files, key=lambda p: p.stat().st_mtime)
+            return read_ndjson_trace(latest)
+
+        # Fall back to legacy JSON format
+        json_files = list(self.trace_dir.glob("trace_*.json"))
+        if json_files:
+            latest = max(json_files, key=lambda p: p.stat().st_mtime)
+            return json.loads(latest.read_text())
+
+        return None
 
     def _find_span_by_name(self, trace: dict, name_pattern: str) -> dict | None:
         """Find a span by name pattern."""
@@ -220,6 +229,22 @@ class TestTraceFileIntegrity:
 
         reset_semantic_tracer()
 
+    def _read_trace_file(self) -> dict | None:
+        """Read the most recent trace file (supports both JSON and NDJSON formats)."""
+        # Try NDJSON first (new format)
+        ndjson_files = list(self.trace_dir.glob("*.ndjson"))
+        if ndjson_files:
+            latest = max(ndjson_files, key=lambda p: p.stat().st_mtime)
+            return read_ndjson_trace(latest)
+
+        # Fall back to legacy JSON format
+        json_files = list(self.trace_dir.glob("trace_*.json"))
+        if json_files:
+            latest = max(json_files, key=lambda p: p.stat().st_mtime)
+            return json.loads(latest.read_text())
+
+        return None
+
     def test_trace_file_written_even_on_error(self) -> None:
         """Verify trace file is written even when spans error."""
         tracer = SemanticTracer(
@@ -237,11 +262,13 @@ class TestTraceFileIntegrity:
             with tracer.agent_lifecycle("agent1", "Test Agent", "start"):
                 raise RuntimeError("Startup failed")
 
-        # Verify file exists and has spans
-        trace_files = list(self.trace_dir.glob("trace_*.json"))
-        assert len(trace_files) == 1
+        # Verify file exists and has spans (check for both formats)
+        ndjson_files = list(self.trace_dir.glob("*.ndjson"))
+        json_files = list(self.trace_dir.glob("trace_*.json"))
+        assert len(ndjson_files) == 1 or len(json_files) == 1
 
-        trace = json.loads(trace_files[0].read_text())
+        trace = self._read_trace_file()
+        assert trace is not None
         assert trace["span_count"] == 2
 
         # Verify error span has correct status
@@ -276,11 +303,13 @@ class TestTraceFileIntegrity:
         with tracer.llm_message("assistant", "Final response", "gpt-4"):
             pass
 
-        # Verify
-        trace_files = list(self.trace_dir.glob("trace_*.json"))
-        assert len(trace_files) == 1
+        # Verify (check for both formats)
+        ndjson_files = list(self.trace_dir.glob("*.ndjson"))
+        json_files = list(self.trace_dir.glob("trace_*.json"))
+        assert len(ndjson_files) == 1 or len(json_files) == 1
 
-        trace = json.loads(trace_files[0].read_text())
+        trace = self._read_trace_file()
+        assert trace is not None
         assert trace["span_count"] == 3
 
         statuses = [s["status"] for s in trace["spans"]]

@@ -111,8 +111,8 @@ class Connection(BaseModel):
 class TopologyConfig(BaseModel):
     """Network topology configuration."""
 
-    type: Literal["hub-spoke", "pipeline", "dag", "mesh", "hierarchical"] = Field(
-        ..., description="Topology pattern type"
+    type: Literal["hub-spoke", "pipeline", "dag", "mesh", "hierarchical", "dynamic"] = (
+        Field(..., description="Topology pattern type")
     )
 
     # Hub-spoke specific
